@@ -437,32 +437,30 @@
     }
 
 
-    // シェイプレイヤー内を再帰的に走査して、RectSize/Pos/Round をコールバックで処理
-    function traverseRectProps(layer, callback) {
-        var contents = layer.property("Contents");
-        if (!contents) return;
+    // シェイプレイヤー内を再帰的に走査して、RectSize/Pos/Round と変形系の
+    // エクスプレッションを処理
+    function visitPropsWithExpression(layer, callback) {
+        function scan(propGroup) {
+            if (!propGroup || propGroup.numProperties === undefined) return;
 
-        function scanGroup(group) {
-            for (var i = 1; i <= group.numProperties; i++) {
-                var p = group.property(i);
+            for (var i = 1; i <= propGroup.numProperties; i++) {
+                var p = propGroup.property(i);
+                var isRect = (p.matchName === "ADBE Vector Rect Size" ||
+                              p.matchName === "ADBE Vector Rect Position" ||
+                              p.matchName === "ADBE Vector Rect Roundness");
 
-                // プロパティ（子を持たない or 値を持つもの）
-                if (p.matchName === "ADBE Vector Rect Size" ||
-                    p.matchName === "ADBE Vector Rect Position" ||
-                    p.matchName === "ADBE Vector Rect Roundness") {
-
-                    callback(p); // ← 処理は外から渡す
-
+                if (isRect || p.parentProperty === layer.transform) {
+                    if (p.canSetExpression && p.expression !== "") {
+                        callback(p);
+                    }
                 }
 
-                // グループなら再帰
-                if (p.numProperties > 0) {
-                    scanGroup(p);
-                }
+                if (p.numProperties > 0) scan(p);
             }
         }
 
-        scanGroup(contents);
+        scan(layer.property("Contents"));
+        scan(layer.transform);
     }
 
 
@@ -477,12 +475,13 @@
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
 
-            traverseRectProps(L, function(prop){
-                if (!prop || !prop.canSetExpression) return;
-                if (prop.expression === "") return;
-
-                var v = prop.valueAtTime(time);
-                prop.setValueAtTime(time, v);
+            visitPropsWithExpression(L, function(prop){
+                var v = prop.valueAtTime(time, true);
+                if (prop.isTimeVarying) {
+                    prop.setValueAtTime(time, v);
+                } else {
+                    prop.setValue(v);
+                }
                 prop.expressionEnabled = false; // エクスを一時停止
             });
 
@@ -496,10 +495,7 @@
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
 
-            traverseRectProps(L, function(prop){
-                if (!prop || !prop.canSetExpression) return;
-                if (prop.expression === "") return; // Bake 済み
-
+            visitPropsWithExpression(L, function(prop){
                 prop.expressionEnabled = true;
             });
         }
@@ -509,11 +505,14 @@
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
 
-            traverseRectProps(L, function(prop){
-                if (!prop || !prop.canSetExpression) return;
-
-                var v = prop.valueAtTime(time);
-                prop.setValueAtTime(time, v);
+            visitPropsWithExpression(L, function(prop){
+                var v = prop.valueAtTime(time, true);
+                if (prop.isTimeVarying) {
+                    prop.setValueAtTime(time, v);
+                } else {
+                    prop.setValue(v);
+                }
+                prop.expressionEnabled = false;
                 prop.expression = ""; // 永続的に固定
             });
         }
