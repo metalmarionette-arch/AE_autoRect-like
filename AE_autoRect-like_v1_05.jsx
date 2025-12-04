@@ -476,7 +476,7 @@
             var L = ls[i];
 
             visitPropsWithExpression(L, function(prop){
-                var v = prop.valueAtTime(time, true);
+                var v = prop.valueAtTime(time, false);
                 if (prop.isTimeVarying) {
                     prop.setValueAtTime(time, v);
                 } else {
@@ -506,7 +506,7 @@
             var L = ls[i];
 
             visitPropsWithExpression(L, function(prop){
-                var v = prop.valueAtTime(time, true);
+                var v = prop.valueAtTime(time, false);
                 if (prop.isTimeVarying) {
                     prop.setValueAtTime(time, v);
                 } else {
