@@ -476,37 +476,15 @@
     function freezeLayers(ls, time) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
-            var rects = getRectProps(L);
-            for (var j = 0; j < rects.length; j++) {
-                var rp = rects[j];
-                if (!rp) continue;
 
-                var props = getRectSizePosRound(rp);
-                var sz = props.size;
-                var ps = props.pos;
-                var rd = props.round;
+            traverseRectProps(L, function(prop){
+                if (!prop || !prop.canSetExpression) return;
+                if (prop.expression === "") return;
 
-                // ---- Size ----
-                if (sz && sz.canSetExpression && sz.expressionEnabled) {
-                    var v = sz.valueAtTime(time);      // エクス適用後の値
-                    sz.setValueAtTime(time, v);        // その値でキー追加
-                    sz.expressionEnabled = false;      // エクスを一時停止
-                }
-
-                // ---- Position ----
-                if (ps && ps.canSetExpression && ps.expressionEnabled) {
-                    var v2 = ps.valueAtTime(time);
-                    ps.setValueAtTime(time, v2);
-                    ps.expressionEnabled = false;
-                }
-
-                // ---- Roundness ----
-                if (rd && rd.canSetExpression && rd.expressionEnabled) {
-                    var v3 = rd.valueAtTime(time);
-                    rd.setValueAtTime(time, v3);
-                    rd.expressionEnabled = false;
-                }
-            }
+                var v = prop.valueAtTime(time);
+                prop.setValueAtTime(time, v);
+                prop.expressionEnabled = false; // エクスを一時停止
+            });
 
             // Freezeした印のマーカー
             var mv = new MarkerValue("固定（Freeze）@" + time.toFixed(3) + "s");
@@ -517,63 +495,27 @@
     function unfreezeLayers(ls) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
-            var rects = getRectProps(L);
-            for (var j = 0; j < rects.length; j++) {
-                var rp = rects[j];
-                if (!rp) continue;
 
-                var props = getRectSizePosRound(rp);
-                var sz = props.size;
-                var ps = props.pos;
-                var rd = props.round;
+            traverseRectProps(L, function(prop){
+                if (!prop || !prop.canSetExpression) return;
+                if (prop.expression === "") return; // Bake 済み
 
-                if (sz && sz.canSetExpression && sz.expression !== "") {
-                    sz.expressionEnabled = true;
-                }
-                if (ps && ps.canSetExpression && ps.expression !== "") {
-                    ps.expressionEnabled = true;
-                }
-                if (rd && rd.canSetExpression && rd.expression !== "") {
-                    rd.expressionEnabled = true;
-                }
-            }
+                prop.expressionEnabled = true;
+            });
         }
     }
 
     function bakeLayers(ls, time) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
-            var rects = getRectProps(L);
-            for (var j = 0; j < rects.length; j++) {
-                var rp = rects[j];
-                if (!rp) continue;
 
-                var props = getRectSizePosRound(rp);
-                var sz = props.size;
-                var ps = props.pos;
-                var rd = props.round;
+            traverseRectProps(L, function(prop){
+                if (!prop || !prop.canSetExpression) return;
 
-                // ---- Size ----
-                if (sz && sz.canSetExpression) {
-                    var v = sz.valueAtTime(time); // エクス適用後の値
-                    sz.setValueAtTime(time, v);   // 値を書き込み
-                    sz.expression = "";           // エクス文字列削除
-                }
-
-                // ---- Position ----
-                if (ps && ps.canSetExpression) {
-                    var v2 = ps.valueAtTime(time);
-                    ps.setValueAtTime(time, v2);
-                    ps.expression = "";
-                }
-
-                // ---- Roundness ----
-                if (rd && rd.canSetExpression) {
-                    var v3 = rd.valueAtTime(time);
-                    rd.setValueAtTime(time, v3);
-                    rd.expression = "";
-                }
-            }
+                var v = prop.valueAtTime(time);
+                prop.setValueAtTime(time, v);
+                prop.expression = ""; // 永続的に固定
+            });
         }
     }
 
