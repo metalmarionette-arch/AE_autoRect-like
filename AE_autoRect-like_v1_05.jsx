@@ -41,6 +41,17 @@
         return confirm("対象レイヤーには既にトラックマットが設定されています。\n上書きしてよろしいですか？");
     }
 
+    function applyAlphaTrackMatte(target, matteLayer) {
+        if (!(target instanceof AVLayer)) return;
+        // トラックマットは 2D レイヤーのみ有効
+        if (target.threeDLayer) target.threeDLayer = false;
+        if (matteLayer.threeDLayer) matteLayer.threeDLayer = false;
+        matteLayer.adjustmentLayer = false; // マット用に調整レイヤー化は無効
+
+        matteLayer.moveBefore(target);
+        target.trackMatteType = MATTE_TYPE;
+    }
+
     function getKeyboardShift() {
         try { return ScriptUI.environment.keyboardState.shiftKey; } catch(e){ return false; }
     }
@@ -54,6 +65,36 @@
                 b = (s & 255) / 255;
             return [r,g,b];
         } catch(e){ return null; }
+    }
+
+    function createColorSwatch(parent, label, initialRGB) {
+        var grp = parent.add("group");
+        grp.orientation = "row";
+        grp.add("statictext", undefined, label);
+        var sw = grp.add("button", undefined, "");
+        sw.preferredSize = [40, 20];
+        var color = initialRGB || [0.5,0.5,0.5];
+
+        function redraw(){
+            try {
+                var g = sw.graphics;
+                var b = g.newBrush(g.BrushType.SOLID_COLOR, color);
+                g.newPath();
+                g.rectPath(0,0,sw.size[0], sw.size[1]);
+                g.fillPath(b);
+            } catch(e){}
+        }
+
+        sw.onDraw = redraw;
+        sw.onClick = function(){
+            var c = pickColorRGB(color);
+            if (c) { color = c; redraw(); }
+        };
+
+        return {
+            getColor: function(){ return color; },
+            setColor: function(c){ if (c) { color = c; redraw(); } }
+        };
     }
 
     function saveSetting(key, val){
@@ -219,11 +260,11 @@
         if (opt.strokeOn) {
             stroke = g.addProperty("ADBE Vector Graphic - Stroke");
             stroke.property("ADBE Vector Stroke Width").setValue(opt.strokeWidth);
-            if (opt.colorRGB) stroke.property("ADBE Vector Stroke Color").setValue(opt.colorRGB);
+            if (opt.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(opt.strokeColor);
         }
         if (opt.fillOn) {
             fill = g.addProperty("ADBE Vector Graphic - Fill");
-            if (opt.colorRGB) fill.property("ADBE Vector Fill Color").setValue(opt.colorRGB);
+            if (opt.fillColor) fill.property("ADBE Vector Fill Color").setValue(opt.fillColor);
         }
         return {stroke:stroke, fill:fill};
     }
@@ -239,6 +280,40 @@
         addSlider("余白 X", padX);
         addSlider("余白 Y", padY);
         addSlider("角丸", corner);
+    }
+
+    function ensureFixedBaseEffects(layer, baseSize, basePos) {
+        var fx = layer.property("ADBE Effect Parade");
+
+        function ensureSlider(name, def){
+            var sld = fx.property(name);
+            if (!sld) {
+                sld = fx.addProperty("ADBE Slider Control");
+                sld.name = name;
+            }
+            if (def !== undefined && def !== null) {
+                sld.property("ADBE Slider Control-0001").setValue(def);
+            }
+            return sld.property("ADBE Slider Control-0001");
+        }
+
+        function ensurePoint(name, def){
+            var pt = fx.property(name);
+            if (!pt) {
+                pt = fx.addProperty("ADBE Point Control");
+                pt.name = name;
+            }
+            if (def !== undefined && def !== null) {
+                pt.property("ADBE Point Control-0001").setValue(def);
+            }
+            return pt.property("ADBE Point Control-0001");
+        }
+
+        var baseW = ensureSlider("固定ベース幅", baseSize ? baseSize[0] : null);
+        var baseH = ensureSlider("固定ベース高さ", baseSize ? baseSize[1] : null);
+        var baseP = ensurePoint("固定ベース位置", basePos);
+
+        return { width: baseW, height: baseH, pos: baseP };
     }
 
     function createAutoRectForTargets(comp, targets, option) {
@@ -352,8 +427,7 @@
                     if (!confirmOverwriteMatte(tgt)) {
                         // スキップ
                     } else {
-                        shape.moveBefore(tgt);
-                        tgt.trackMatteType = MATTE_TYPE;
+                        applyAlphaTrackMatte(tgt, shape);
                     }
                 }
 
@@ -437,32 +511,30 @@
     }
 
 
-    // シェイプレイヤー内を再帰的に走査して、RectSize/Pos/Round をコールバックで処理
-    function traverseRectProps(layer, callback) {
-        var contents = layer.property("Contents");
-        if (!contents) return;
+    // シェイプレイヤー内を再帰的に走査して、RectSize/Pos/Round と変形系の
+    // エクスプレッションを処理
+    function visitPropsWithExpression(layer, callback) {
+        function scan(propGroup) {
+            if (!propGroup || propGroup.numProperties === undefined) return;
 
-        function scanGroup(group) {
-            for (var i = 1; i <= group.numProperties; i++) {
-                var p = group.property(i);
+            for (var i = 1; i <= propGroup.numProperties; i++) {
+                var p = propGroup.property(i);
+                var isRect = (p.matchName === "ADBE Vector Rect Size" ||
+                              p.matchName === "ADBE Vector Rect Position" ||
+                              p.matchName === "ADBE Vector Rect Roundness");
 
-                // プロパティ（子を持たない or 値を持つもの）
-                if (p.matchName === "ADBE Vector Rect Size" ||
-                    p.matchName === "ADBE Vector Rect Position" ||
-                    p.matchName === "ADBE Vector Rect Roundness") {
-
-                    callback(p); // ← 処理は外から渡す
-
+                if (isRect || p.parentProperty === layer.transform) {
+                    if (p.canSetExpression && p.expression !== "") {
+                        callback(p);
+                    }
                 }
 
-                // グループなら再帰
-                if (p.numProperties > 0) {
-                    scanGroup(p);
-                }
+                if (p.numProperties > 0) scan(p);
             }
         }
 
-        scanGroup(contents);
+        scan(layer.property("Contents"));
+        scan(layer.transform);
     }
 
 
@@ -476,37 +548,16 @@
     function freezeLayers(ls, time) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
-            var rects = getRectProps(L);
-            for (var j = 0; j < rects.length; j++) {
-                var rp = rects[j];
-                if (!rp) continue;
 
-                var props = getRectSizePosRound(rp);
-                var sz = props.size;
-                var ps = props.pos;
-                var rd = props.round;
-
-                // ---- Size ----
-                if (sz && sz.canSetExpression && sz.expressionEnabled) {
-                    var v = sz.valueAtTime(time);      // エクス適用後の値
-                    sz.setValueAtTime(time, v);        // その値でキー追加
-                    sz.expressionEnabled = false;      // エクスを一時停止
+            visitPropsWithExpression(L, function(prop){
+                var v = prop.valueAtTime(time, false);
+                if (prop.isTimeVarying) {
+                    prop.setValueAtTime(time, v);
+                } else {
+                    prop.setValue(v);
                 }
-
-                // ---- Position ----
-                if (ps && ps.canSetExpression && ps.expressionEnabled) {
-                    var v2 = ps.valueAtTime(time);
-                    ps.setValueAtTime(time, v2);
-                    ps.expressionEnabled = false;
-                }
-
-                // ---- Roundness ----
-                if (rd && rd.canSetExpression && rd.expressionEnabled) {
-                    var v3 = rd.valueAtTime(time);
-                    rd.setValueAtTime(time, v3);
-                    rd.expressionEnabled = false;
-                }
-            }
+                prop.expressionEnabled = false; // エクスを一時停止
+            });
 
             // Freezeした印のマーカー
             var mv = new MarkerValue("固定（Freeze）@" + time.toFixed(3) + "s");
@@ -517,61 +568,81 @@
     function unfreezeLayers(ls) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
-            var rects = getRectProps(L);
-            for (var j = 0; j < rects.length; j++) {
-                var rp = rects[j];
-                if (!rp) continue;
 
-                var props = getRectSizePosRound(rp);
-                var sz = props.size;
-                var ps = props.pos;
-                var rd = props.round;
-
-                if (sz && sz.canSetExpression && sz.expression !== "") {
-                    sz.expressionEnabled = true;
-                }
-                if (ps && ps.canSetExpression && ps.expression !== "") {
-                    ps.expressionEnabled = true;
-                }
-                if (rd && rd.canSetExpression && rd.expression !== "") {
-                    rd.expressionEnabled = true;
-                }
-            }
+            visitPropsWithExpression(L, function(prop){
+                prop.expressionEnabled = true;
+            });
         }
     }
 
     function bakeLayers(ls, time) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
+
+            visitPropsWithExpression(L, function(prop){
+                var v = prop.valueAtTime(time, false);
+                if (prop.isTimeVarying) {
+                    prop.setValueAtTime(time, v);
+                } else {
+                    prop.setValue(v);
+                }
+                prop.expressionEnabled = false;
+                prop.expression = ""; // 永続的に固定
+            });
+        }
+    }
+
+    function lockWithPadding(ls, time) {
+        for (var i = 0; i < ls.length; i++) {
+            var L = ls[i];
+            var fx = L.property("ADBE Effect Parade");
+            if (!fx) continue;
+
+            var padX = fx.property("余白 X") ? fx.property("余白 X").property(1).value : 0;
+            var padY = fx.property("余白 Y") ? fx.property("余白 Y").property(1).value : 0;
+
             var rects = getRectProps(L);
-            for (var j = 0; j < rects.length; j++) {
-                var rp = rects[j];
-                if (!rp) continue;
+            for (var r = 0; r < rects.length; r++) {
+                var rp = getRectSizePosRound(rects[r]);
+                if (!rp.size && !rp.pos) continue;
 
-                var props = getRectSizePosRound(rp);
-                var sz = props.size;
-                var ps = props.pos;
-                var rd = props.round;
+                var szVal = rp.size ? rp.size.valueAtTime(time, false) : [100,100];
+                var psVal = rp.pos ? rp.pos.valueAtTime(time, false) : [0,0];
 
-                // ---- Size ----
-                if (sz && sz.canSetExpression) {
-                    var v = sz.valueAtTime(time); // エクス適用後の値
-                    sz.setValueAtTime(time, v);   // 値を書き込み
-                    sz.expression = "";           // エクス文字列削除
+                var baseSize = [Math.max(0, szVal[0] - padX*2), Math.max(0, szVal[1] - padY*2)];
+
+                var keep = ensureFixedBaseEffects(L, baseSize, psVal);
+
+                if (rp.size) {
+                    // まず現在値を書き込んで元のエクスプレッションの影響を断つ
+                    rp.size.expressionEnabled = false;
+                    rp.size.setValue([Math.max(0, baseSize[0] + padX*2), Math.max(0, baseSize[1] + padY*2)]);
+
+                    // ベース寸法はロック時の値を保持し、余白スライダーだけを効かせる
+                    rp.size.expression =
+                        "var bwC = effect('固定ベース幅');\n" +
+                        "var bhC = effect('固定ベース高さ');\n" +
+                        "var pxC = effect('余白 X');\n" +
+                        "var pyC = effect('余白 Y');\n" +
+                        "var bw = bwC ? bwC('スライダー') : " + baseSize[0].toFixed(6) + ";\n" +
+                        "var bh = bhC ? bhC('スライダー') : " + baseSize[1].toFixed(6) + ";\n" +
+                        "var px = pxC ? pxC('スライダー') : 0;\n" +
+                        "var py = pyC ? pyC('スライダー') : 0;\n" +
+                        "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
+                    rp.size.expressionEnabled = true;
                 }
 
-                // ---- Position ----
-                if (ps && ps.canSetExpression) {
-                    var v2 = ps.valueAtTime(time);
-                    ps.setValueAtTime(time, v2);
-                    ps.expression = "";
+                if (rp.pos) {
+                    rp.pos.expressionEnabled = false;
+                    rp.pos.setValue(psVal);
+                    rp.pos.expression = "var pC = effect('固定ベース位置');\n" +
+                                         "pC ? pC('ポイント') : [" + psVal[0].toFixed(6) + "," + psVal[1].toFixed(6) + "];";
+                    rp.pos.expressionEnabled = true;
                 }
 
-                // ---- Roundness ----
-                if (rd && rd.canSetExpression) {
-                    var v3 = rd.valueAtTime(time);
-                    rd.setValueAtTime(time, v3);
-                    rd.expression = "";
+                if (rp.round) {
+                    rp.round.expression = buildRoundnessExpr();
+                    rp.round.expressionEnabled = true;
                 }
             }
         }
@@ -605,6 +676,7 @@
         var btCreate   = btnGrp.add("button", undefined, "作成 (Create)");
         var btFreeze   = btnGrp.add("button", undefined, "Freeze 固定");
         var btUnfreeze = btnGrp.add("button", undefined, "Freeze解除");
+        var btLockPad  = btnGrp.add("button", undefined, "余白固定 (新)");
         var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
 
         // スイッチ列
@@ -645,15 +717,20 @@
         var etStrokeW = row3.add("edittext", undefined, String(loadSetting("strokeW", 4)));
         etStrokeW.characters = 4;
 
-        var ckFill = row3.add("checkbox", undefined, "塗り（Fill）");
+        var row4 = opt.add("group");
+        var ckFill = row4.add("checkbox", undefined, "塗り（Fill）");
         ckFill.value = !!loadSetting("fillOn", true);
-        var btColor = row3.add("button", undefined, "色を選択…");
 
-        var colorRGB = [
-            loadSetting("colR", 0.2),
-            loadSetting("colG", 0.6),
-            loadSetting("colB", 1.0)
-        ];
+        var strokeSwatch = createColorSwatch(row4, "線色", [
+            loadSetting("strokeR", 0.2),
+            loadSetting("strokeG", 0.6),
+            loadSetting("strokeB", 1.0)
+        ]);
+        var fillSwatch = createColorSwatch(row4, "塗り色", [
+            loadSetting("fillR", 0.0),
+            loadSetting("fillG", 0.4),
+            loadSetting("fillB", 0.9)
+        ]);
 
         // マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
@@ -705,11 +782,6 @@
         pal.onShow = refreshInfo;
         pal.addEventListener("mousemove", refreshInfo);
 
-        btColor.onClick = function(){
-            var c = pickColorRGB(colorRGB);
-            if (c) colorRGB = c;
-        };
-
         function gatherOptions(){
             var padX   = num(etPadX.text, 16);
             var padY   = num(etPadY.text, 8);
@@ -723,9 +795,14 @@
             saveSetting("strokeOn", ckStroke.value);
             saveSetting("strokeW", strokeW);
             saveSetting("fillOn", ckFill.value);
-            saveSetting("colR", colorRGB[0]);
-            saveSetting("colG", colorRGB[1]);
-            saveSetting("colB", colorRGB[2]);
+            var strokeC = strokeSwatch.getColor();
+            var fillC   = fillSwatch.getColor();
+            saveSetting("strokeR", strokeC[0]);
+            saveSetting("strokeG", strokeC[1]);
+            saveSetting("strokeB", strokeC[2]);
+            saveSetting("fillR", fillC[0]);
+            saveSetting("fillG", fillC[1]);
+            saveSetting("fillB", fillC[2]);
             saveSetting("insertAbove", ckInsertAbove.value);
             saveSetting("parentTo", ckParent.value);
             saveSetting("makeAdj", ckAdj.value);
@@ -744,8 +821,9 @@
                 cornerRadius:  corner,
                 strokeOn:      ckStroke.value,
                 strokeWidth:   strokeW,
+                strokeColor:   strokeC,
                 fillOn:        ckFill.value,
-                colorRGB:      colorRGB,
+                fillColor:     fillC,
                 multiMode:     (rbAll.value ? "all" : "each"),
                 allowAutoOnAuto: ckAllowAuto.value
             };
@@ -854,6 +932,25 @@
                     return;
                 }
                 unfreezeLayers(cand);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        btLockPad.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - 余白固定");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (cand.length === 0) {
+                    alert("余白固定の対象となる矩形レイヤーを選択してください。");
+                    return;
+                }
+                lockWithPadding(cand, comp.time);
             } finally {
                 app.endUndoGroup();
             }
