@@ -41,6 +41,17 @@
         return confirm("対象レイヤーには既にトラックマットが設定されています。\n上書きしてよろしいですか？");
     }
 
+    function applyAlphaTrackMatte(target, matteLayer) {
+        if (!(target instanceof AVLayer)) return;
+        // トラックマットは 2D レイヤーのみ有効
+        if (target.threeDLayer) target.threeDLayer = false;
+        if (matteLayer.threeDLayer) matteLayer.threeDLayer = false;
+        matteLayer.adjustmentLayer = false; // マット用に調整レイヤー化は無効
+
+        matteLayer.moveBefore(target);
+        target.trackMatteType = MATTE_TYPE;
+    }
+
     function getKeyboardShift() {
         try { return ScriptUI.environment.keyboardState.shiftKey; } catch(e){ return false; }
     }
@@ -54,6 +65,36 @@
                 b = (s & 255) / 255;
             return [r,g,b];
         } catch(e){ return null; }
+    }
+
+    function createColorSwatch(parent, label, initialRGB) {
+        var grp = parent.add("group");
+        grp.orientation = "row";
+        grp.add("statictext", undefined, label);
+        var sw = grp.add("button", undefined, "");
+        sw.preferredSize = [40, 20];
+        var color = initialRGB || [0.5,0.5,0.5];
+
+        function redraw(){
+            try {
+                var g = sw.graphics;
+                var b = g.newBrush(g.BrushType.SOLID_COLOR, color);
+                g.newPath();
+                g.rectPath(0,0,sw.size[0], sw.size[1]);
+                g.fillPath(b);
+            } catch(e){}
+        }
+
+        sw.onDraw = redraw;
+        sw.onClick = function(){
+            var c = pickColorRGB(color);
+            if (c) { color = c; redraw(); }
+        };
+
+        return {
+            getColor: function(){ return color; },
+            setColor: function(c){ if (c) { color = c; redraw(); } }
+        };
     }
 
     function saveSetting(key, val){
@@ -219,11 +260,11 @@
         if (opt.strokeOn) {
             stroke = g.addProperty("ADBE Vector Graphic - Stroke");
             stroke.property("ADBE Vector Stroke Width").setValue(opt.strokeWidth);
-            if (opt.colorRGB) stroke.property("ADBE Vector Stroke Color").setValue(opt.colorRGB);
+            if (opt.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(opt.strokeColor);
         }
         if (opt.fillOn) {
             fill = g.addProperty("ADBE Vector Graphic - Fill");
-            if (opt.colorRGB) fill.property("ADBE Vector Fill Color").setValue(opt.colorRGB);
+            if (opt.fillColor) fill.property("ADBE Vector Fill Color").setValue(opt.fillColor);
         }
         return {stroke:stroke, fill:fill};
     }
@@ -352,8 +393,7 @@
                     if (!confirmOverwriteMatte(tgt)) {
                         // スキップ
                     } else {
-                        shape.moveBefore(tgt);
-                        tgt.trackMatteType = MATTE_TYPE;
+                        applyAlphaTrackMatte(tgt, shape);
                     }
                 }
 
@@ -586,15 +626,20 @@
         var etStrokeW = row3.add("edittext", undefined, String(loadSetting("strokeW", 4)));
         etStrokeW.characters = 4;
 
-        var ckFill = row3.add("checkbox", undefined, "塗り（Fill）");
+        var row4 = opt.add("group");
+        var ckFill = row4.add("checkbox", undefined, "塗り（Fill）");
         ckFill.value = !!loadSetting("fillOn", true);
-        var btColor = row3.add("button", undefined, "色を選択…");
 
-        var colorRGB = [
-            loadSetting("colR", 0.2),
-            loadSetting("colG", 0.6),
-            loadSetting("colB", 1.0)
-        ];
+        var strokeSwatch = createColorSwatch(row4, "線色", [
+            loadSetting("strokeR", 0.2),
+            loadSetting("strokeG", 0.6),
+            loadSetting("strokeB", 1.0)
+        ]);
+        var fillSwatch = createColorSwatch(row4, "塗り色", [
+            loadSetting("fillR", 0.0),
+            loadSetting("fillG", 0.4),
+            loadSetting("fillB", 0.9)
+        ]);
 
         // マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
@@ -646,11 +691,6 @@
         pal.onShow = refreshInfo;
         pal.addEventListener("mousemove", refreshInfo);
 
-        btColor.onClick = function(){
-            var c = pickColorRGB(colorRGB);
-            if (c) colorRGB = c;
-        };
-
         function gatherOptions(){
             var padX   = num(etPadX.text, 16);
             var padY   = num(etPadY.text, 8);
@@ -664,9 +704,14 @@
             saveSetting("strokeOn", ckStroke.value);
             saveSetting("strokeW", strokeW);
             saveSetting("fillOn", ckFill.value);
-            saveSetting("colR", colorRGB[0]);
-            saveSetting("colG", colorRGB[1]);
-            saveSetting("colB", colorRGB[2]);
+            var strokeC = strokeSwatch.getColor();
+            var fillC   = fillSwatch.getColor();
+            saveSetting("strokeR", strokeC[0]);
+            saveSetting("strokeG", strokeC[1]);
+            saveSetting("strokeB", strokeC[2]);
+            saveSetting("fillR", fillC[0]);
+            saveSetting("fillG", fillC[1]);
+            saveSetting("fillB", fillC[2]);
             saveSetting("insertAbove", ckInsertAbove.value);
             saveSetting("parentTo", ckParent.value);
             saveSetting("makeAdj", ckAdj.value);
@@ -685,8 +730,9 @@
                 cornerRadius:  corner,
                 strokeOn:      ckStroke.value,
                 strokeWidth:   strokeW,
+                strokeColor:   strokeC,
                 fillOn:        ckFill.value,
-                colorRGB:      colorRGB,
+                fillColor:     fillC,
                 multiMode:     (rbAll.value ? "all" : "each"),
                 allowAutoOnAuto: ckAllowAuto.value
             };
