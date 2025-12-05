@@ -316,6 +316,14 @@
         return { width: baseW, height: baseH, pos: baseP };
     }
 
+    function applyExpression(prop, expr) {
+        if (!prop || !prop.canSetExpression) return;
+        prop.expressionEnabled = false;
+        try { prop.expression = ""; } catch (e) {}
+        prop.expression = expr;
+        prop.expressionEnabled = true;
+    }
+
     function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
@@ -619,7 +627,7 @@
                     rp.size.setValue([Math.max(0, baseSize[0] + padX*2), Math.max(0, baseSize[1] + padY*2)]);
 
                     // ベース寸法はロック時の値を保持し、余白スライダーだけを効かせる
-                    rp.size.expression =
+                    applyExpression(rp.size,
                         "var bwC = effect('固定ベース幅');\n" +
                         "var bhC = effect('固定ベース高さ');\n" +
                         "var pxC = effect('余白 X');\n" +
@@ -628,21 +636,20 @@
                         "var bh = bhC ? bhC('スライダー') : " + baseSize[1].toFixed(6) + ";\n" +
                         "var px = pxC ? pxC('スライダー') : 0;\n" +
                         "var py = pyC ? pyC('スライダー') : 0;\n" +
-                        "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
-                    rp.size.expressionEnabled = true;
+                        "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];");
                 }
 
                 if (rp.pos) {
                     rp.pos.expressionEnabled = false;
                     rp.pos.setValue(psVal);
-                    rp.pos.expression = "var pC = effect('固定ベース位置');\n" +
-                                         "pC ? pC('ポイント') : [" + psVal[0].toFixed(6) + "," + psVal[1].toFixed(6) + "];";
-                    rp.pos.expressionEnabled = true;
+                    applyExpression(rp.pos,
+                        "var pC = effect('固定ベース位置');\n" +
+                        "pC ? pC('ポイント') : [" + psVal[0].toFixed(6) + "," + psVal[1].toFixed(6) + "];"
+                    );
                 }
 
                 if (rp.round) {
-                    rp.round.expression = buildRoundnessExpr();
-                    rp.round.expressionEnabled = true;
+                    applyExpression(rp.round, buildRoundnessExpr());
                 }
             }
         }
