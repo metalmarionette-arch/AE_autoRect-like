@@ -282,6 +282,40 @@
         addSlider("角丸", corner);
     }
 
+    function ensureFixedBaseEffects(layer, baseSize, basePos) {
+        var fx = layer.property("ADBE Effect Parade");
+
+        function ensureSlider(name, def){
+            var sld = fx.property(name);
+            if (!sld) {
+                sld = fx.addProperty("ADBE Slider Control");
+                sld.name = name;
+            }
+            if (def !== undefined && def !== null) {
+                sld.property("ADBE Slider Control-0001").setValue(def);
+            }
+            return sld.property("ADBE Slider Control-0001");
+        }
+
+        function ensurePoint(name, def){
+            var pt = fx.property(name);
+            if (!pt) {
+                pt = fx.addProperty("ADBE Point Control");
+                pt.name = name;
+            }
+            if (def !== undefined && def !== null) {
+                pt.property("ADBE Point Control-0001").setValue(def);
+            }
+            return pt.property("ADBE Point Control-0001");
+        }
+
+        var baseW = ensureSlider("固定ベース幅", baseSize ? baseSize[0] : null);
+        var baseH = ensureSlider("固定ベース高さ", baseSize ? baseSize[1] : null);
+        var baseP = ensurePoint("固定ベース位置", basePos);
+
+        return { width: baseW, height: baseH, pos: baseP };
+    }
+
     function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
@@ -558,6 +592,49 @@
         }
     }
 
+    function lockWithPadding(ls, time) {
+        for (var i = 0; i < ls.length; i++) {
+            var L = ls[i];
+            var fx = L.property("ADBE Effect Parade");
+            if (!fx) continue;
+
+            var padX = fx.property("余白 X") ? fx.property("余白 X").property(1).value : 0;
+            var padY = fx.property("余白 Y") ? fx.property("余白 Y").property(1).value : 0;
+
+            var rects = getRectProps(L);
+            for (var r = 0; r < rects.length; r++) {
+                var rp = getRectSizePosRound(rects[r]);
+                if (!rp.size && !rp.pos) continue;
+
+                var szVal = rp.size ? rp.size.valueAtTime(time, false) : [100,100];
+                var psVal = rp.pos ? rp.pos.valueAtTime(time, false) : [0,0];
+
+                var baseSize = [Math.max(0, szVal[0] - padX*2), Math.max(0, szVal[1] - padY*2)];
+
+                var keep = ensureFixedBaseEffects(L, baseSize, psVal);
+
+                if (rp.size) {
+                    rp.size.expression = "var bw=effect('固定ベース幅')('スライダー');\n" +
+                                         "var bh=effect('固定ベース高さ')('スライダー');\n" +
+                                         "var px=effect('余白 X')('スライダー');\n" +
+                                         "var py=effect('余白 Y')('スライダー');\n" +
+                                         "[Math.max(0,bw+px*2), Math.max(0,bh+py*2)];";
+                    rp.size.expressionEnabled = true;
+                }
+
+                if (rp.pos) {
+                    rp.pos.expression = "effect('固定ベース位置')('ポイント');";
+                    rp.pos.expressionEnabled = true;
+                }
+
+                if (rp.round) {
+                    rp.round.expression = buildRoundnessExpr();
+                    rp.round.expressionEnabled = true;
+                }
+            }
+        }
+    }
+
 
 
 
@@ -586,6 +663,7 @@
         var btCreate   = btnGrp.add("button", undefined, "作成 (Create)");
         var btFreeze   = btnGrp.add("button", undefined, "Freeze 固定");
         var btUnfreeze = btnGrp.add("button", undefined, "Freeze解除");
+        var btLockPad  = btnGrp.add("button", undefined, "余白固定 (新)");
         var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
 
         // スイッチ列
@@ -841,6 +919,25 @@
                     return;
                 }
                 unfreezeLayers(cand);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        btLockPad.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - 余白固定");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (cand.length === 0) {
+                    alert("余白固定の対象となる矩形レイヤーを選択してください。");
+                    return;
+                }
+                lockWithPadding(cand, comp.time);
             } finally {
                 app.endUndoGroup();
             }
