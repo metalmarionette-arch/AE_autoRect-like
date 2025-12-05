@@ -618,14 +618,14 @@
                     rp.size.expressionEnabled = false;
                     rp.size.setValue([Math.max(0, baseSize[0] + padX*2), Math.max(0, baseSize[1] + padY*2)]);
 
-                    // 「余白 X/Y」はそのまま効かせつつ、固定ベースは変化しないようスライダー値のみ参照
+                    // ベース寸法はロック時の値を保持し、余白スライダーだけを効かせる
                     rp.size.expression =
                         "var bwC = effect('固定ベース幅');\n" +
                         "var bhC = effect('固定ベース高さ');\n" +
                         "var pxC = effect('余白 X');\n" +
                         "var pyC = effect('余白 Y');\n" +
-                        "var bw = bwC ? bwC('スライダー') : value[0];\n" +
-                        "var bh = bhC ? bhC('スライダー') : value[1];\n" +
+                        "var bw = bwC ? bwC('スライダー') : " + baseSize[0].toFixed(6) + ";\n" +
+                        "var bh = bhC ? bhC('スライダー') : " + baseSize[1].toFixed(6) + ";\n" +
                         "var px = pxC ? pxC('スライダー') : 0;\n" +
                         "var py = pyC ? pyC('スライダー') : 0;\n" +
                         "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
@@ -635,7 +635,8 @@
                 if (rp.pos) {
                     rp.pos.expressionEnabled = false;
                     rp.pos.setValue(psVal);
-                    rp.pos.expression = "effect('固定ベース位置')('ポイント');";
+                    rp.pos.expression = "var pC = effect('固定ベース位置');\n" +
+                                         "pC ? pC('ポイント') : [" + psVal[0].toFixed(6) + "," + psVal[1].toFixed(6) + "];";
                     rp.pos.expressionEnabled = true;
                 }
 
