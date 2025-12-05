@@ -614,15 +614,22 @@
                 var keep = ensureFixedBaseEffects(L, baseSize, psVal);
 
                 if (rp.size) {
-                    rp.size.expression = "var bw=effect('固定ベース幅')('スライダー');\n" +
-                                         "var bh=effect('固定ベース高さ')('スライダー');\n" +
-                                         "var px=effect('余白 X')('スライダー');\n" +
-                                         "var py=effect('余白 Y')('スライダー');\n" +
-                                         "[Math.max(0,bw+px*2), Math.max(0,bh+py*2)];";
+                    // まず現在値を書き込んで元のエクスプレッションの影響を断つ
+                    rp.size.expressionEnabled = false;
+                    rp.size.setValue([Math.max(0, baseSize[0] + padX*2), Math.max(0, baseSize[1] + padY*2)]);
+
+                    // 「余白 X/Y」はそのまま効かせつつ、固定ベースは変化しないようスライダー値のみ参照
+                    rp.size.expression = "var bw = effect('固定ベース幅')('スライダー');\n" +
+                                         "var bh = effect('固定ベース高さ')('スライダー');\n" +
+                                         "var px = effect('余白 X')('スライダー');\n" +
+                                         "var py = effect('余白 Y')('スライダー');\n" +
+                                         "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
                     rp.size.expressionEnabled = true;
                 }
 
                 if (rp.pos) {
+                    rp.pos.expressionEnabled = false;
+                    rp.pos.setValue(psVal);
                     rp.pos.expression = "effect('固定ベース位置')('ポイント');";
                     rp.pos.expressionEnabled = true;
                 }
