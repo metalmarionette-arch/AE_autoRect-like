@@ -619,11 +619,16 @@
                     rp.size.setValue([Math.max(0, baseSize[0] + padX*2), Math.max(0, baseSize[1] + padY*2)]);
 
                     // 「余白 X/Y」はそのまま効かせつつ、固定ベースは変化しないようスライダー値のみ参照
-                    rp.size.expression = "var bw = effect('固定ベース幅')('スライダー');\n" +
-                                         "var bh = effect('固定ベース高さ')('スライダー');\n" +
-                                         "var px = effect('余白 X')('スライダー');\n" +
-                                         "var py = effect('余白 Y')('スライダー');\n" +
-                                         "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
+                    rp.size.expression =
+                        "var bwC = effect('固定ベース幅');\n" +
+                        "var bhC = effect('固定ベース高さ');\n" +
+                        "var pxC = effect('余白 X');\n" +
+                        "var pyC = effect('余白 Y');\n" +
+                        "var bw = bwC ? bwC('スライダー') : value[0];\n" +
+                        "var bh = bhC ? bhC('スライダー') : value[1];\n" +
+                        "var px = pxC ? pxC('スライダー') : 0;\n" +
+                        "var py = pyC ? pyC('スライダー') : 0;\n" +
+                        "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
                     rp.size.expressionEnabled = true;
                 }
 
