@@ -48,7 +48,20 @@
         if (matteLayer.threeDLayer) matteLayer.threeDLayer = false;
         matteLayer.adjustmentLayer = false; // マット用に調整レイヤー化は無効
 
+        // 旧 UI では「直上のレイヤー」をマットとして見るので、まずは上に移動
         matteLayer.moveBefore(target);
+
+        // 新トラックマット UI（任意レイヤー指定）にも対応
+        try {
+            if (typeof target.setTrackMatte === "function") {
+                target.setTrackMatte(matteLayer, MATTE_TYPE);
+                return;
+            }
+            if ("trackMatteLayer" in target) {
+                target.trackMatteLayer = matteLayer;
+            }
+        } catch (e) {}
+
         target.trackMatteType = MATTE_TYPE;
     }
 
@@ -443,7 +456,7 @@
         return created;
     }
 
-    // Freeze / Unfreeze / Bake 対象抽出
+    // Bake 対象抽出
     function pickCandidateShapesFromSelection(comp) {
         var out = [];
         var sel = comp.selectedLayers;
@@ -539,36 +552,6 @@
 
         scan(layer.property("Contents"));
         scan(layer.transform);
-    }
-
-    function freezeLayers(ls, time) {
-        for (var i = 0; i < ls.length; i++) {
-            var L = ls[i];
-
-            visitPropsWithExpression(L, function(prop){
-                var v = prop.valueAtTime(time, false);
-                if (prop.isTimeVarying) {
-                    prop.setValueAtTime(time, v);
-                } else {
-                    prop.setValue(v);
-                }
-                prop.expressionEnabled = false; // エクスを一時停止
-            });
-
-            // Freezeした印のマーカー
-            var mv = new MarkerValue("固定（Freeze）@" + time.toFixed(3) + "s");
-            L.property("Marker").setValueAtTime(time, mv);
-        }
-    }
-
-    function unfreezeLayers(ls) {
-        for (var i = 0; i < ls.length; i++) {
-            var L = ls[i];
-
-            visitPropsWithExpression(L, function(prop){
-                prop.expressionEnabled = true;
-            });
-        }
     }
 
     function bakeLayers(ls, time) {
@@ -790,8 +773,6 @@
         var btnGrp = pal.add("group");
         btnGrp.alignment = "fill";
         var btCreate   = btnGrp.add("button", undefined, "作成 (Create)");
-        var btFreeze   = btnGrp.add("button", undefined, "Freeze 固定");
-        var btUnfreeze = btnGrp.add("button", undefined, "Freeze解除");
         var btLockPad  = btnGrp.add("button", undefined, "文字追従停止");
         var btUnlockPad = btnGrp.add("button", undefined, "文字追従復活");
         var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
@@ -1016,44 +997,6 @@
             }
         };
 
-        btFreeze.onClick = function(){
-            app.beginUndoGroup(SCRIPT_NAME + " - Freeze");
-            try {
-                var comp = app.project.activeItem;
-                if (!comp || !(comp instanceof CompItem)) {
-                    alert("コンポジションをアクティブにしてください。");
-                    return;
-                }
-                var cand = pickCandidateShapesFromSelection(comp);
-                if (cand.length === 0) {
-                    alert("Freeze 対象の矩形レイヤーを選択してください。");
-                    return;
-                }
-                freezeLayers(cand, comp.time);
-            } finally {
-                app.endUndoGroup();
-            }
-        };
-
-        btUnfreeze.onClick = function(){
-            app.beginUndoGroup(SCRIPT_NAME + " - Freeze解除");
-            try {
-                var comp = app.project.activeItem;
-                if (!comp || !(comp instanceof CompItem)) {
-                    alert("コンポジションをアクティブにしてください。");
-                    return;
-                }
-                var cand = pickCandidateShapesFromSelection(comp);
-                if (cand.length === 0) {
-                    alert("Freeze解除 対象の矩形レイヤーを選択してください。");
-                    return;
-                }
-                unfreezeLayers(cand);
-            } finally {
-                app.endUndoGroup();
-            }
-        };
-
         btLockPad.onClick = function(){
             app.beginUndoGroup(SCRIPT_NAME + " - 文字追従停止");
             try {
@@ -1106,7 +1049,7 @@
 
                 // ★選択レイヤーそのもの
                 var sel  = comp.selectedLayers;
-                // ★Freeze / Bake 対象としてスクリプトが認識しているシェイプレイヤー
+                // ★Bake 対象としてスクリプトが認識しているシェイプレイヤー
                 var cand = pickCandidateShapesFromSelection(comp);
 
                 if (cand.length === 0) {
