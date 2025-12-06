@@ -48,7 +48,20 @@
         if (matteLayer.threeDLayer) matteLayer.threeDLayer = false;
         matteLayer.adjustmentLayer = false; // マット用に調整レイヤー化は無効
 
+        // 旧 UI では「直上のレイヤー」をマットとして見るので、まずは上に移動
         matteLayer.moveBefore(target);
+
+        // 新トラックマット UI（任意レイヤー指定）にも対応
+        try {
+            if (typeof target.setTrackMatte === "function") {
+                target.setTrackMatte(matteLayer, MATTE_TYPE);
+                return;
+            }
+            if ("trackMatteLayer" in target) {
+                target.trackMatteLayer = matteLayer;
+            }
+        } catch (e) {}
+
         target.trackMatteType = MATTE_TYPE;
     }
 
