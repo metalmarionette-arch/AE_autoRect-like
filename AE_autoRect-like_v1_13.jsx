@@ -191,21 +191,27 @@
     function buildRectSizeExpr(mode, targetNameList, includeExtents) {
         var inc = includeExtents ? "true" : "false";
         var s  = "";
-        s += "var px = effect('余白 X')('スライダー');\n";
-        s += "var py = effect('余白 Y')('スライダー');\n";
+        s += "function useMaster(){var cb = effect('マスター優先'); return cb ? cb('チェックボックス')>0 : false;}\n";
+        s += "function masterFx(L){ try { return L ? L.effect('AutoRect マスター') : null; } catch(e){ return null; } }\n";
+        s += "function padX(L){ var m = masterFx(L); var base = effect('余白 X')('スライダー'); return (useMaster() && m && m.property('マスター_余白 X')) ? m('マスター_余白 X')('スライダー') : base; }\n";
+        s += "function padY(L){ var m = masterFx(L); var base = effect('余白 Y')('スライダー'); return (useMaster() && m && m.property('マスター_余白 Y')) ? m('マスター_余白 Y')('スライダー') : base; }\n";
+        s += "function refTime(L){ var mode = effect('参照タイミング') ? effect('参照タイミング')('スライダー') : 1; var ct = effect('Custom Time (秒)') ? effect('Custom Time (秒)')('スライダー') : time; if (mode==2) return L ? L.inPoint : time; if (mode==3) return L ? (L.inPoint+L.outPoint)/2 : time; if (mode==4) return L ? L.outPoint : time; if (mode==5) return ct; return time; }\n";
+        s += "function heightCoeff(L){ var mode = effect('高さモード') ? effect('高さモード')('スライダー') : 1; var cap = effect('Cap Height 係数') ? effect('Cap Height 係数')('スライダー') : 1; var xh = effect('x-Height 係数') ? effect('x-Height 係数')('スライダー') : 1; var m = masterFx(L); if (useMaster() && m && m.property('マスター_高さモード')) mode = m('マスター_高さモード')('スライダー'); var c = 1; if (mode==2) c = cap; else if (mode==3) c = xh; return c; }\n";
 
         if (mode === "parent") {
             s += "var L = parent;\n";
-            s += "var r = L ? L.sourceRectAtTime(time,"+inc+") : {width:100,height:100};\n";
-            s += "var w = Math.max(0, r.width  + px*2);\n";
-            s += "var h = Math.max(0, r.height + py*2);\n";
+            s += "var t = refTime(L);\n";
+            s += "var r = L ? L.sourceRectAtTime(t,"+inc+") : {width:100,height:100};\n";
+            s += "var w = Math.max(0, r.width  + padX(L)*2);\n";
+            s += "var h = Math.max(0, r.height * heightCoeff(L) + padY(L)*2);\n";
             s += "[w, h];\n";
 
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
-            s += "var r = L ? L.sourceRectAtTime(time,"+inc+") : {width:100,height:100};\n";
-            s += "var w = Math.max(0, r.width  + px*2);\n";
-            s += "var h = Math.max(0, r.height + py*2);\n";
+            s += "var t = refTime(L);\n";
+            s += "var r = L ? L.sourceRectAtTime(t,"+inc+") : {width:100,height:100};\n";
+            s += "var w = Math.max(0, r.width  + padX(L)*2);\n";
+            s += "var h = Math.max(0, r.height * heightCoeff(L) + padY(L)*2);\n";
             s += "[w, h];\n";
 
         } else { // multi
@@ -215,24 +221,28 @@
             }
             s += "];\n";
             s += "function layerRect(L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
+            s += "  var tm = refTime(L);\n";
+            s += "  var r = L.sourceRectAtTime(tm,"+inc+");\n";
             s += "  var p1 = L.toComp([r.left, r.top]);\n";
             s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
             s += "  return [p1[0], p1[1], p2[0], p2[1]];\n";
             s += "}\n";
-            s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+            s += "var l=1e9,tt=1e9,r=-1e9,b=-1e9;\n";
+            s += "var px = padX(null);\n";
+            s += "var py = padY(null);\n";
+            s += "var hc = heightCoeff(null);\n";
             s += "for (var i=0;i<names.length;i++){\n";
             s += "  var L = thisComp.layer(names[i]);\n";
             s += "  if(!L) continue;\n";
             s += "  if (!L.sourceRectAtTime) continue;\n";
             s += "  var rc = layerRect(L);\n";
             s += "  l = Math.min(l, rc[0]);\n";
-            s += "  t = Math.min(t, rc[1]);\n";
+            s += "  tt = Math.min(tt, rc[1]);\n";
             s += "  r = Math.max(r, rc[2]);\n";
             s += "  b = Math.max(b, rc[3]);\n";
             s += "}\n";
             s += "var w = Math.max(0, r - l) + px*2;\n";
-            s += "var h = Math.max(0, b - t) + py*2;\n";
+            s += "var h = Math.max(0, (b - tt) * hc + py*2);\n";
             s += "[w, h];\n";
         }
         return s;
@@ -241,11 +251,13 @@
     function buildRectPosExpr(mode, targetNameList, includeExtents) {
         var inc = includeExtents ? "true" : "false";
         var s  = "";
+        s += "function refTime(L){ var mode = effect('参照タイミング') ? effect('参照タイミング')('スライダー') : 1; var ct = effect('Custom Time (秒)') ? effect('Custom Time (秒)')('スライダー') : time; if (mode==2) return L ? L.inPoint : time; if (mode==3) return L ? (L.inPoint+L.outPoint)/2 : time; if (mode==4) return L ? L.outPoint : time; if (mode==5) return ct; return time; }\n";
 
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
+            s += "  var t = refTime(L);\n";
+            s += "  var r = L.sourceRectAtTime(t,"+inc+");\n";
             s += "  // テキストのバウンディングの中心をコンポ座標に変換\n";
             s += "  var c = L.toComp([r.left + r.width/2, r.top + r.height/2]);\n";
             s += "  // それをシェイプレイヤーのローカル座標に戻して配置\n";
@@ -257,7 +269,8 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
+            s += "  var t = refTime(L);\n";
+            s += "  var r = L.sourceRectAtTime(t,"+inc+");\n";
             s += "  var c = L.toComp([r.left + r.width/2, r.top + r.height/2]);\n";
             s += "  fromWorld(c);\n";
             s += "}else{\n";
@@ -271,33 +284,46 @@
             }
             s += "];\n";
             s += "function rectOf(L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
+            s += "  var tm = refTime(L);\n";
+            s += "  var r = L.sourceRectAtTime(tm,"+inc+");\n";
             s += "  var p1 = L.toComp([r.left, r.top]);\n";
             s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
             s += "  return [p1[0], p1[1], p2[0], p2[1]];\n";
             s += "}\n";
-            s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+            s += "var l=1e9,tt=1e9,r=-1e9,b=-1e9;\n";
             s += "for (var i=0;i<names.length;i++){\n";
             s += "  var L=thisComp.layer(names[i]);\n";
             s += "  if(!L) continue;\n";
             s += "  if(!L.sourceRectAtTime) continue;\n";
             s += "  var rc=rectOf(L);\n";
             s += "  l=Math.min(l,rc[0]);\n";
-            s += "  t=Math.min(t,rc[1]);\n";
+            s += "  tt=Math.min(tt,rc[1]);\n";
             s += "  r=Math.max(r,rc[2]);\n";
             s += "  b=Math.max(b,rc[3]);\n";
             s += "}\n";
             s += "var cx = (l+r)/2;\n";
-            s += "var cy = (t+b)/2;\n";
+            s += "var cy = (tt+b)/2;\n";
             s += "fromWorld([cx,cy]);\n";
         }
         return s;
     }
 
 
-    function buildRoundnessExpr() {
-        return "var v = effect('角丸')('スライダー');\n" +
-               "Math.max(0, Math.min(100, v));";
+    function buildRoundnessExpr(mode, targetName) {
+        var s = "";
+        s += "function useMaster(){ var cb = effect('マスター優先'); return cb ? cb('チェックボックス')>0 : false; }\n";
+        s += "function masterFx(L){ try { return L ? L.effect('AutoRect マスター') : null; } catch(e){ return null; } }\n";
+        s += "var L = null;\n";
+        if (mode === "parent") {
+            s += "L = parent;\n";
+        } else if (targetName) {
+            s += "L = thisComp.layer('" + targetName.replace(/'/g, "\\'") + "');\n";
+        }
+        s += "var m = masterFx(L);\n";
+        s += "var v = effect('角丸')('スライダー');\n";
+        s += "if (useMaster() && m && m.property('マスター_角丸')) v = m('マスター_角丸')('スライダー');\n";
+        s += "Math.max(0, Math.min(100, v));";
+        return s;
     }
 
     function linkLayerTransformByExpr(dstLayer, srcLayer) {
@@ -353,8 +379,68 @@
         addSlider("角丸", corner);
     }
 
+    function ensureMasterEffectsForText(target, defaults) {
+        if (!target || !target.property) return;
+        var fx = target.property("ADBE Effect Parade");
+        if (!fx) return;
+
+        function ensureSlider(name, val) {
+            var sld = fx.property(name);
+            if (!sld) {
+                sld = fx.addProperty("ADBE Slider Control");
+                sld.name = name;
+            }
+            if (val !== undefined && val !== null) {
+                sld.property("ADBE Slider Control-0001").setValue(val);
+            }
+            return sld.property("ADBE Slider Control-0001");
+        }
+
+        ensureSlider("マスター_余白 X", defaults ? defaults.padX : 16);
+        ensureSlider("マスター_余白 Y", defaults ? defaults.padY : 8);
+        ensureSlider("マスター_角丸", defaults ? defaults.corner : 0);
+        ensureSlider("マスター_高さモード", defaults ? defaults.heightMode : 1);
+    }
+
+    function addAdvancedBoxEffects(layer, opt) {
+        if (!layer || !layer.property) return;
+        var fx = layer.property("ADBE Effect Parade");
+        if (!fx) return;
+
+        function ensureSlider(name, val){
+            var sld = fx.property(name);
+            if (!sld) {
+                sld = fx.addProperty("ADBE Slider Control");
+                sld.name = name;
+            }
+            if (val !== undefined && val !== null) {
+                sld.property("ADBE Slider Control-0001").setValue(val);
+            }
+            return sld.property("ADBE Slider Control-0001");
+        }
+
+        function ensureCheckbox(name, val){
+            var cb = fx.property(name);
+            if (!cb) {
+                cb = fx.addProperty("ADBE Checkbox Control");
+                cb.name = name;
+            }
+            if (val !== undefined && val !== null) {
+                cb.property("ADBE Checkbox Control-0001").setValue(val ? 1 : 0);
+            }
+            return cb.property("ADBE Checkbox Control-0001");
+        }
+
+        ensureCheckbox("マスター優先", opt ? opt.masterPriority : false);
+        ensureSlider("参照タイミング", opt ? opt.refTiming : 1);
+        ensureSlider("Custom Time (秒)", opt ? opt.customTime : 0);
+        ensureSlider("高さモード", opt ? opt.heightMode : 1);
+        ensureSlider("Cap Height 係数", opt ? opt.capCoeff : 0.8);
+        ensureSlider("x-Height 係数", opt ? opt.xCoeff : 0.7);
+    }
+
     // ターゲット名をエクスプレッション経由で保持するためのエフェクトを追加
-    function applyTargetReferenceEffect(shapeLayer, target) {
+    function applyTargetReferenceEffect(shapeLayer, target, defaults, opt) {
         if (!shapeLayer || !target) return;
 
         var fx = shapeLayer.property("ADBE Effect Parade");
@@ -373,6 +459,10 @@
         // レイヤー名が変わっても自動追従するよう、レイヤー参照式を設定
         prop.expression = "thisComp.layer(\"" + target.name + "\").transform.position[0];";
         prop.expressionEnabled = true;
+
+        if (opt && opt.ensureMasterEffects) {
+            ensureMasterEffectsForText(target, defaults);
+        }
     }
 
     // "ターゲット参照" エフェクトのエクスプレッションから現在のレイヤー名を抽出
@@ -480,17 +570,18 @@
             var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
             addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius);
+            addAdvancedBoxEffects(shape, option);
 
             var names = [];
             for (var i=0;i<targets.length;i++) names.push(targets[i].name);
 
             rect.property("Size").expression      = buildRectSizeExpr("multi", names, option.includeExtents);
             rect.property("Position").expression  = buildRectPosExpr("multi", names, option.includeExtents);
-            rect.property("Roundness").expression = buildRoundnessExpr();
+            rect.property("Roundness").expression = buildRoundnessExpr(option.parentTo ? "parent" : "direct", topTgt.name);
 
             ensureStrokeFill(gp, option);
 
-            applyTargetReferenceEffect(shape, topTgt);
+            applyTargetReferenceEffect(shape, topTgt, { padX: option.paddingX, padY: option.paddingY, corner: option.cornerRadius, heightMode: option.heightMode }, { ensureMasterEffects: option.addMasterEffects });
 
             if (option.parentTo) {
                 shape.parent = topTgt;
@@ -510,6 +601,9 @@
             }
 
             created.push({shape:shape, target:topTgt});
+            if (option.createBoundaryNulls) {
+                createBoundaryNullsForShape(shape);
+            }
 
         // ------------ 各レイヤーにつき 1 つ ----------
         } else {
@@ -535,6 +629,7 @@
                 var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
                 addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius);
+                addAdvancedBoxEffects(shape, option);
 
                 if (option.parentTo) {
                     rect.property("Size").expression      = buildRectSizeExpr("parent", [tgt.name], option.includeExtents);
@@ -544,11 +639,11 @@
                     rect.property("Position").expression  = buildRectPosExpr("direct", [tgt.name], option.includeExtents);
                     linkLayerTransformByExpr(shape, tgt);
                 }
-                rect.property("Roundness").expression = buildRoundnessExpr();
+                rect.property("Roundness").expression = buildRoundnessExpr(option.parentTo ? "parent" : "direct", tgt.name);
 
                 ensureStrokeFill(gp, option);
 
-                applyTargetReferenceEffect(shape, tgt);
+                applyTargetReferenceEffect(shape, tgt, { padX: option.paddingX, padY: option.paddingY, corner: option.cornerRadius, heightMode: option.heightMode }, { ensureMasterEffects: option.addMasterEffects });
 
                 if (option.parentTo) {
                     shape.parent = tgt;
@@ -578,9 +673,62 @@
                 }
 
                 created.push({shape:shape, target:tgt});
+                if (option.createBoundaryNulls) {
+                    createBoundaryNullsForShape(shape);
+                }
             }
         }
         return created;
+    }
+
+    function buildBoundaryNullExpr(shapeName, key) {
+        var s = "var L = thisComp.layer('" + shapeName.replace(/'/g, "\\'") + "');\n";
+        s += "if(!L) [0,0,0];\n";
+        s += "var r = L.sourceRectAtTime(time, true);\n";
+        s += "var tl = L.toComp([r.left, r.top, 0]);\n";
+        s += "var tr = L.toComp([r.left + r.width, r.top, 0]);\n";
+        s += "var bl = L.toComp([r.left, r.top + r.height, 0]);\n";
+        s += "var br = L.toComp([r.left + r.width, r.top + r.height, 0]);\n";
+        s += "var tc = L.toComp([r.left + r.width/2, r.top, 0]);\n";
+        s += "var bc = L.toComp([r.left + r.width/2, r.top + r.height, 0]);\n";
+        s += "var cl = L.toComp([r.left, r.top + r.height/2, 0]);\n";
+        s += "var cr = L.toComp([r.left + r.width, r.top + r.height/2, 0]);\n";
+        s += "var cc = L.toComp([r.left + r.width/2, r.top + r.height/2, 0]);\n";
+        s += "switch('" + key + "') {\n";
+        s += "  case 'TL': return tl;\n";
+        s += "  case 'TC': return tc;\n";
+        s += "  case 'TR': return tr;\n";
+        s += "  case 'CL': return cl;\n";
+        s += "  case 'C' : return cc;\n";
+        s += "  case 'CR': return cr;\n";
+        s += "  case 'BL': return bl;\n";
+        s += "  case 'BC': return bc;\n";
+        s += "  case 'BR': return br;\n";
+        s += "}\n";
+        s += "cc;";
+        return s;
+    }
+
+    function createBoundaryNullsForShape(shapeLayer) {
+        if (!shapeLayer || !(shapeLayer instanceof ShapeLayer)) return [];
+        var comp = shapeLayer.containingComp;
+        if (!comp) return [];
+        var suffixes = ["TL","TC","TR","CL","C","CR","BL","BC","BR"];
+        var out = [];
+
+        for (var i=0;i<suffixes.length;i++) {
+            var nullName = uniqueNameInComp(comp, shapeLayer.name + "_Null_" + suffixes[i]);
+            var n = comp.layers.addNull();
+            n.name = nullName;
+            n.threeDLayer = shapeLayer.threeDLayer;
+            if (n.threeDLayer && n.property("ADBE Transform Group").property("ADBE Position").dimensionsSeparated) {
+                n.property("ADBE Transform Group").property("ADBE Position").dimensionsSeparated = false;
+            }
+            var expr = buildBoundaryNullExpr(shapeLayer.name, suffixes[i]);
+            applyExpression(n.property("ADBE Transform Group").property("ADBE Position"), expr);
+            out.push(n);
+        }
+        return out;
     }
 
     // Bake 対象抽出
@@ -776,7 +924,7 @@
                 if (roundProp) {
                     roundProp.expression = "";
                     roundProp.expressionEnabled = false;
-                    roundProp.expression = buildRoundnessExpr();
+                    roundProp.expression = buildRoundnessExpr(null, null);
                     roundProp.expressionEnabled = true;
                 }
             }
@@ -879,7 +1027,7 @@
 
                 // Roundness：常に「角丸」エフェクト追従に戻す
                 if (props.round) {
-                    var rdExpr = buildRoundnessExpr();
+                    var rdExpr = buildRoundnessExpr(mode, target.name);
                     applyExpression(props.round, rdExpr);
                 }
             }
@@ -983,6 +1131,53 @@
         rbAll.value  = (multiDef === "all");
         rbEach.value = !rbAll.value;
 
+        var adv = pal.add("panel", undefined, "高度設定");
+        adv.orientation = "column";
+        adv.alignChildren = "left";
+        adv.alignment = "fill";
+
+        var masterGrp = adv.add("group");
+        masterGrp.orientation = "column";
+        var ckAddMasterFx = masterGrp.add("checkbox", undefined, "テキストにマスターエフェクトを追加/更新");
+        ckAddMasterFx.value = !!loadSetting("addMaster", true);
+        var ckMasterPriority = masterGrp.add("checkbox", undefined, "マスター設定優先（ボックス側で参照）");
+        ckMasterPriority.value = !!loadSetting("masterPriority", false);
+
+        var boxPanel = adv.add("panel", undefined, "ボックス詳細設定");
+        boxPanel.orientation = "column";
+        boxPanel.alignChildren = "left";
+        var heightGrp = boxPanel.add("group");
+        heightGrp.add("statictext", undefined, "高さモード");
+        var ddHeightMode = heightGrp.add("dropdownlist", undefined, ["Full Height", "Cap Height", "x-Height"]);
+        var hmIdx = Math.max(0, Math.min(2, loadSetting("heightMode", 1) - 1));
+        ddHeightMode.selection = ddHeightMode.items[hmIdx];
+        var coeffGrp = boxPanel.add("group");
+        coeffGrp.add("statictext", undefined, "Cap 係数");
+        var etCapCoeff = coeffGrp.add("edittext", undefined, String(loadSetting("capCoeff", 0.8)));
+        etCapCoeff.characters = 5;
+        coeffGrp.add("statictext", undefined, "x 係数");
+        var etXCoeff = coeffGrp.add("edittext", undefined, String(loadSetting("xCoeff", 0.7)));
+        etXCoeff.characters = 5;
+
+        var refPanel = adv.add("panel", undefined, "参照タイミング");
+        refPanel.orientation = "column";
+        var refGrp = refPanel.add("group");
+        refGrp.add("statictext", undefined, "ソース参照");
+        var ddRefTiming = refGrp.add("dropdownlist", undefined, ["Current Time", "Layer In Point", "Layer Mid Point", "Layer Out Point", "Custom Time"]);
+        var rtIdx = Math.max(0, Math.min(4, loadSetting("refTiming", 1) - 1));
+        ddRefTiming.selection = ddRefTiming.items[rtIdx];
+        var ctGrp = refPanel.add("group");
+        ctGrp.add("statictext", undefined, "Custom Time (秒)");
+        var etCustomTime = ctGrp.add("edittext", undefined, String(loadSetting("customTime", 0)));
+        etCustomTime.characters = 6;
+
+        var elemPanel = adv.add("panel", undefined, "Elements / Boundary");
+        elemPanel.orientation = "column";
+        elemPanel.alignChildren = "left";
+        var ckBoundaryAuto = elemPanel.add("checkbox", undefined, "AutoRect 作成時に Boundary Nulls を追加");
+        ckBoundaryAuto.value = !!loadSetting("boundaryAuto", false);
+        var btBoundary = elemPanel.add("button", undefined, "選択シェイプに Boundary Nulls 追加");
+
         // チェックの既定値
         ckInsertAbove.value = !!loadSetting("insertAbove", false);
         ckParent.value      = !!loadSetting("parentTo",  true);
@@ -1026,6 +1221,11 @@
             var padY   = num(etPadY.text, 8);
             var corner = clamp(num(etCorner.text, 0), 0, 100);
             var strokeW = Math.max(0, num(etStrokeW.text, 4));
+            var heightMode = ddHeightMode.selection ? ddHeightMode.selection.index + 1 : 1;
+            var capCoeff   = num(etCapCoeff.text, 0.8);
+            var xCoeff     = num(etXCoeff.text, 0.7);
+            var refTiming  = ddRefTiming.selection ? ddRefTiming.selection.index + 1 : 1;
+            var customTime = num(etCustomTime.text, 0);
 
             saveSetting("padX", padX);
             saveSetting("padY", padY);
@@ -1048,6 +1248,14 @@
             saveSetting("setMatte", ckMatte.value);
             saveSetting("allowAuto", ckAllowAuto.value);
             saveSetting("multiMode", rbAll.value ? "all" : "each");
+            saveSetting("addMaster", ckAddMasterFx.value);
+            saveSetting("masterPriority", ckMasterPriority.value);
+            saveSetting("heightMode", heightMode);
+            saveSetting("capCoeff", capCoeff);
+            saveSetting("xCoeff", xCoeff);
+            saveSetting("refTiming", refTiming);
+            saveSetting("customTime", customTime);
+            saveSetting("boundaryAuto", ckBoundaryAuto.value);
 
             return {
                 insertAbove:   ckInsertAbove.value,
@@ -1064,7 +1272,15 @@
                 fillOn:        ckFill.value,
                 fillColor:     fillC,
                 multiMode:     (rbAll.value ? "all" : "each"),
-                allowAutoOnAuto: ckAllowAuto.value
+                allowAutoOnAuto: ckAllowAuto.value,
+                addMasterEffects: ckAddMasterFx.value,
+                masterPriority: ckMasterPriority.value,
+                heightMode: heightMode,
+                capCoeff: capCoeff,
+                xCoeff: xCoeff,
+                refTiming: refTiming,
+                customTime: customTime,
+                createBoundaryNulls: ckBoundaryAuto.value
             };
         }
 
@@ -1172,6 +1388,27 @@
                 }
 
                 unlockPadding(cand, comp);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        btBoundary.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - Boundary Nulls");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (cand.length === 0) {
+                    alert("Boundary Nulls を追加するシェイプレイヤーを選択してください。");
+                    return;
+                }
+                for (var bi=0; bi<cand.length; bi++) {
+                    createBoundaryNullsForShape(cand[bi]);
+                }
             } finally {
                 app.endUndoGroup();
             }
