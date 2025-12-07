@@ -353,6 +353,44 @@
         addSlider("角丸", corner);
     }
 
+    // ターゲット名をエクスプレッション経由で保持するためのエフェクトを追加
+    function applyTargetReferenceEffect(shapeLayer, target) {
+        if (!shapeLayer || !target) return;
+
+        var fx = shapeLayer.property("ADBE Effect Parade");
+        if (!fx) return;
+
+        var ref = fx.property("ターゲット参照");
+        if (!ref) {
+            ref = fx.addProperty("ADBE Slider Control");
+            if (!ref) return;
+            ref.name = "ターゲット参照";
+        }
+
+        var prop = ref.property("ADBE Slider Control-0001");
+        if (!prop || !prop.canSetExpression) return;
+
+        // レイヤー名が変わっても自動追従するよう、レイヤー参照式を設定
+        prop.expression = "thisComp.layer(\"" + target.name + "\").transform.position[0];";
+        prop.expressionEnabled = true;
+    }
+
+    // "ターゲット参照" エフェクトのエクスプレッションから現在のレイヤー名を抽出
+    function findTargetNameFromReferenceEffect(shapeLayer) {
+        if (!shapeLayer) return null;
+        var fx = shapeLayer.property("ADBE Effect Parade");
+        if (!fx) return null;
+        var ref = fx.property("ターゲット参照");
+        if (!ref) return null;
+
+        var prop = ref.property("ADBE Slider Control-0001");
+        if (!prop) return null;
+
+        var expr = String(prop.expression || "");
+        var m = expr.match(/layer\(["'](.+?)["']\)/);
+        return (m && m[1]) ? m[1] : null;
+    }
+
     function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var fx = layer.property("ADBE Effect Parade");
 
@@ -395,6 +433,23 @@
         prop.expressionEnabled = true;
     }
 
+    function resetChildTransformForParent(shape) {
+        if (!shape || !shape.transform) return;
+        var tr = shape.transform;
+
+        if (tr.rotation) tr.rotation.setValue(0);
+        if (tr.zRotation) tr.zRotation.setValue(0);
+        if (tr.xRotation) tr.xRotation.setValue(0);
+        if (tr.yRotation) tr.yRotation.setValue(0);
+        if (tr.orientation) tr.orientation.setValue([0, 0, 0]);
+
+        if (tr.scale) {
+            var sc = tr.scale.value;
+            var base = (sc.length === 3) ? [100, 100, 100] : [100, 100];
+            tr.scale.setValue(base);
+        }
+    }
+
     function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
@@ -435,9 +490,12 @@
 
             ensureStrokeFill(gp, option);
 
+            applyTargetReferenceEffect(shape, topTgt);
+
             if (option.parentTo) {
                 shape.parent = topTgt;
                 shape.transform.position.setValue(shape.threeDLayer ? [0,0,0] : [0,0]);
+                resetChildTransformForParent(shape);
             } else {
                 linkLayerTransformByExpr(shape, topTgt);
             }
@@ -490,9 +548,12 @@
 
                 ensureStrokeFill(gp, option);
 
+                applyTargetReferenceEffect(shape, tgt);
+
                 if (option.parentTo) {
                     shape.parent = tgt;
                     shape.transform.position.setValue(shape.threeDLayer ? [0,0,0] : [0,0]);
+                    resetChildTransformForParent(shape);
                 }
 
                 shape.adjustmentLayer = !!option.makeAdjustment;
@@ -730,15 +791,29 @@
 
         var target = null;
 
-        // 名前が "Rect_○○" の場合、○○ という名前のレイヤーを探す
-        var nm = shapeLayer.name;
-        if (nm.indexOf("Rect_") === 0) {
-            var base = nm.substring("Rect_".length);
-            for (var i = 1; i <= comp.numLayers; i++) {
-                var L = comp.layer(i);
-                if (L.name === base && L.sourceRectAtTime) {
-                    target = L;
+        // 「ターゲット参照」エフェクトに埋めたレイヤー参照式から名前を復元
+        var refName = findTargetNameFromReferenceEffect(shapeLayer);
+        if (refName) {
+            for (var ri = 1; ri <= comp.numLayers; ri++) {
+                var rL = comp.layer(ri);
+                if (rL && rL.name === refName && rL.sourceRectAtTime) {
+                    target = rL;
                     break;
+                }
+            }
+        }
+
+        // 名前が "Rect_○○" の場合、○○ という名前のレイヤーを探す
+        if (!target) {
+            var nm = shapeLayer.name;
+            if (nm.indexOf("Rect_") === 0) {
+                var base = nm.substring("Rect_".length);
+                for (var i = 1; i <= comp.numLayers; i++) {
+                    var L = comp.layer(i);
+                    if (L.name === base && L.sourceRectAtTime) {
+                        target = L;
+                        break;
+                    }
                 }
             }
         }
