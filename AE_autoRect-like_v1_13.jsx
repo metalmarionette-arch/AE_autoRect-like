@@ -519,12 +519,22 @@
     }
 
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
+        // Use Shape() instead of createPath to avoid environments where createPath is unavailable
+        // (some AE expression engines report missing method errors on path properties).
         var s = "";
         s += "var enabled = effect('コーナーブラケット')('スライダー');\n";
         s += "var cornerEnabled = effect('ブラケット " + cornerLabel + "')('スライダー');\n";
-        s += "var sh;\n";
+        s += "var sh = new Shape();\n";
+        s += "function makeShape(verts){\n";
+        s += "  var t = new Shape();\n";
+        s += "  t.vertices = verts;\n";
+        s += "  t.inTangents = [[0,0],[0,0],[0,0]];\n";
+        s += "  t.outTangents = [[0,0],[0,0],[0,0]];\n";
+        s += "  t.closed = false;\n";
+        s += "  return t;\n";
+        s += "}\n";
         s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
-        s += "  sh = createPath([[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        s += "  sh = makeShape([[0,0],[0,0],[0,0]]);\n";
         s += "} else {\n";
         s += "  var len = effect('ブラケット長')('スライダー');\n";
         s += "  var style = effect('ブラケットスタイル')('スライダー');\n";
@@ -532,7 +542,7 @@
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
         s += "  var dy = " + dirY + " * sign * len * scale;\n";
-        s += "  sh = createPath([[0,0],[dx,0],[dx,dy]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        s += "  sh = makeShape([[0,0],[dx,0],[dx,dy]]);\n";
         s += "}\n";
         s += "sh;\n";
         return s;
