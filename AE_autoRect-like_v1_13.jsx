@@ -522,8 +522,9 @@
         var s = "";
         s += "var enabled = effect('コーナーブラケット')('スライダー');\n";
         s += "var cornerEnabled = effect('ブラケット " + cornerLabel + "')('スライダー');\n";
+        s += "var sh;\n";
         s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
-        s += "  createPath([[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        s += "  sh = createPath([[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
         s += "} else {\n";
         s += "  var len = effect('ブラケット長')('スライダー');\n";
         s += "  var style = effect('ブラケットスタイル')('スライダー');\n";
@@ -531,8 +532,9 @@
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
         s += "  var dy = " + dirY + " * sign * len * scale;\n";
-        s += "  createPath([[0,0],[dx,0],[dx,dy]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        s += "  sh = createPath([[0,0],[dx,0],[dx,dy]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
         s += "}\n";
+        s += "sh;\n";
         return s;
     }
 
