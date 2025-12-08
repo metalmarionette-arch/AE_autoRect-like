@@ -523,8 +523,9 @@
         // (some AE expression engines report missing method errors on path properties).
         var s = "";
         s += "function pick(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
-        s += "var enabled = pick('コーナーブラケット', 0);\n";
-        s += "var cornerEnabled = pick('ブラケット " + cornerLabel + "', 0);\n";
+        s += "function num(v, def){ return (isFinite(v)) ? v : def; }\n";
+        s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
+        s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
         s += "var sh = new Shape();\n";
         s += "function makeShape(verts){\n";
         s += "  var t = new Shape();\n";
@@ -539,8 +540,8 @@
         s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
         s += "  sh = makeShape([[0,0],[0,0],[0,0]]);\n";
         s += "} else {\n";
-        s += "  var len = pick('ブラケット長', 0);\n";
-        s += "  var style = pick('ブラケットスタイル', 0);\n";
+        s += "  var len = num(pick('ブラケット長', 0), 0);\n";
+        s += "  var style = num(pick('ブラケットスタイル', 0), 0);\n";
         s += "  var sign = (style > 0.5 && style < 1.5) ? -1 : 1;\n";
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
