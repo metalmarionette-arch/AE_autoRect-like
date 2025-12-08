@@ -522,8 +522,8 @@
         // Use Shape() instead of createPath to avoid environments where createPath is unavailable
         // (some AE expression engines report missing method errors on path properties).
         var s = "";
-        s += "function pick(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
-        s += "function num(v, def){ return (isFinite(v)) ? v : def; }\n";
+        s += "function pick(name, def){ try { var ef = effect(name); return (ef && ef(1)) ? ef(1).value : def; } catch(e){ return def; } }\n";
+        s += "function num(v, def){ return (typeof v === 'number' && isFinite(v)) ? v : def; }\n";
         s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
         s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
         s += "var sh = new Shape();\n";
@@ -546,6 +546,8 @@
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
         s += "  var dy = " + dirY + " * sign * len * scale;\n";
+        s += "  if (!isFinite(dx)) dx = 0;\n";
+        s += "  if (!isFinite(dy)) dy = 0;\n";
         s += "  sh = makeShape([[0,0],[dx,0],[dx,dy]]);\n";
         s += "}\n";
         s += "sh;\n";
