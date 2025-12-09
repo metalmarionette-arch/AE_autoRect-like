@@ -519,24 +519,14 @@
     }
 
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
-        // Use Shape() instead of createPath to avoid environments where createPath is unavailable
-        // (some AE expression engines report missing method errors on path properties).
+        // Build a path expression using createPath for maximum compatibility with older engines.
         var s = "";
         s += "function pick(name, def){ try { var ef = effect(name); return (ef && ef(1)) ? ef(1).value : def; } catch(e){ return def; } }\n";
         s += "function num(v, def){ return (typeof v === 'number' && isFinite(v)) ? v : def; }\n";
+        s += "function makeShape(verts){ var t=[]; for (var i=0;i<verts.length;i++){ t.push([0,0]); } return createPath(verts, t, t, false); }\n";
         s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
         s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
-        s += "var sh = new Shape();\n";
-        s += "function makeShape(verts){\n";
-        s += "  var t = new Shape();\n";
-        s += "  var tangents = [];\n";
-        s += "  for (var i=0; i<verts.length; i++){ tangents.push([0,0]); }\n";
-        s += "  t.vertices = verts;\n";
-        s += "  t.inTangents = tangents;\n";
-        s += "  t.outTangents = tangents;\n";
-        s += "  t.closed = false;\n";
-        s += "  return t;\n";
-        s += "}\n";
+        s += "var sh;\n";
         s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
         s += "  sh = makeShape([[0,0],[0,0],[0,0]]);\n";
         s += "} else {\n";
