@@ -521,26 +521,33 @@
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
         // Build a path expression using createPath for maximum compatibility with older engines.
         var s = "";
-        s += "function pick(name, def){ try { var ef = effect(name); return (ef && ef(1)) ? ef(1).value : def; } catch(e){ return def; } }\n";
+        s += "function pick(name, def){\n";
+        s += "  try {\n";
+        s += "    var ef = effect(name);\n";
+        s += "    if (ef){ var p = ef(1); if (p && isFinite(p.value)) return p.value; }\n";
+        s += "  } catch(e){}\n";
+        s += "  return def;\n";
+        s += "}\n";
         s += "function num(v, def){ return (typeof v === 'number' && isFinite(v)) ? v : def; }\n";
-        s += "function makeShape(verts){ var t=[]; for (var i=0;i<verts.length;i++){ t.push([0,0]); } return createPath(verts, t, t, false); }\n";
         s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
         s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
-        s += "var sh;\n";
+        s += "var len = num(pick('ブラケット長', 0), 0);\n";
+        s += "var style = num(pick('ブラケットスタイル', 0), 0);\n";
+        s += "var pts, tangents;\n";
         s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
-        s += "  sh = makeShape([[0,0],[0,0],[0,0]]);\n";
+        s += "  pts = [[0,0],[0,0],[0,0]];\n";
         s += "} else {\n";
-        s += "  var len = num(pick('ブラケット長', 0), 0);\n";
-        s += "  var style = num(pick('ブラケットスタイル', 0), 0);\n";
         s += "  var sign = (style > 0.5 && style < 1.5) ? -1 : 1;\n";
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
         s += "  var dy = " + dirY + " * sign * len * scale;\n";
         s += "  if (!isFinite(dx)) dx = 0;\n";
         s += "  if (!isFinite(dy)) dy = 0;\n";
-        s += "  sh = makeShape([[0,0],[dx,0],[dx,dy]]);\n";
+        s += "  // Offset so the corner sits at the group's origin\n";
+        s += "  pts = [[-dx/2, dy/2],[ -dx/2, -dy/2 ], [ dx/2, -dy/2 ]];\n";
         s += "}\n";
-        s += "sh;\n";
+        s += "tangents = []; for (var i=0;i<pts.length;i++){ tangents.push([0,0]); }\n";
+        s += "createPath(pts, tangents, tangents, false);\n";
         return s;
     }
 
