@@ -552,7 +552,11 @@
         s += "function pick(name, def){\n";
         s += "  try {\n";
         s += "    var ef = effect(name);\n";
-        s += "    if (ef){ var p = ef(1); if (p && isFinite(p.value)) return p.value; }\n";
+        s += "    if (ef){\n";
+        s += "      var p = ef.property('ADBE Slider Control-0001');\n";
+        s += "      if (!p) p = ef.property(1);\n";
+        s += "      if (p && isFinite(p.value)) return p.value;\n";
+        s += "    }\n";
         s += "  } catch(e){}\n";
         s += "  return def;\n";
         s += "}\n";
@@ -584,7 +588,11 @@
         s += "function pick(name, def){\n";
         s += "  try {\n";
         s += "    var ef = effect(name);\n";
-        s += "    if (ef){ var p = ef(1); if (p && isFinite(p.value)) return p.value; }\n";
+        s += "    if (ef){\n";
+        s += "      var p = ef.property('ADBE Slider Control-0001');\n";
+        s += "      if (!p) p = ef.property(1);\n";
+        s += "      if (p && isFinite(p.value)) return p.value;\n";
+        s += "    }\n";
         s += "  } catch(e){}\n";
         s += "  return def;\n";
         s += "}\n";
