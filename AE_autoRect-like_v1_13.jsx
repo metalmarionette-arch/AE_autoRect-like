@@ -554,7 +554,7 @@
         s += "    var ef = effect(name);\n";
         s += "    if (!ef) return def;\n";
         s += "    var p = ef('スライダー');\n";
-        s += "    return (isFinite(p)) ? p : def;\n";
+        s += "    return (p && isFinite(p.value)) ? p.value : def;\n";
         s += "  } catch(e){ return def; }\n";
         s += "}\n";
         s += "function num(v, def){ return (isFinite(v)) ? v : def; }\n";
@@ -586,7 +586,7 @@
         s += "    var ef = effect(name);\n";
         s += "    if (!ef) return def;\n";
         s += "    var p = ef('スライダー');\n";
-        s += "    return (isFinite(p)) ? p : def;\n";
+        s += "    return (p && isFinite(p.value)) ? p.value : def;\n";
         s += "  } catch(e){ return def; }\n";
         s += "}\n";
         s += "function num(v, def){ return (isFinite(v)) ? v : def; }\n";
