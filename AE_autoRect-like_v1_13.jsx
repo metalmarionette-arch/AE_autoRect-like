@@ -530,7 +530,7 @@
         ensureColor("ブラケット色", opt.bracketColor || opt.strokeColor || [1,1,1]);
 
         // Debug readouts for bracket expressions
-        var dbgLen = ensureSlider("DBG ブラケット適用長", 0);
+        var dbgLen = ensurePoint("DBG ブラケット適用長", [0,0]);
         applyExpression(dbgLen, buildBracketDebugExpr(null, 0, 0, "len"));
 
         var dbgTL = ensurePoint("DBG ブラケット 左上", [0,0]);
@@ -549,22 +549,19 @@
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
         // Build a path expression using createPath for maximum compatibility with older engines.
         var s = "";
-        s += "function pick(name, def){\n";
+        s += "function pickSlider(name, def){\n";
         s += "  try {\n";
         s += "    var ef = effect(name);\n";
-        s += "    if (ef){\n";
-        s += "      var p = ef.property('ADBE Slider Control-0001');\n";
-        s += "      if (!p) p = ef.property(1);\n";
-        s += "      if (p && isFinite(p.value)) return p.value;\n";
-        s += "    }\n";
-        s += "  } catch(e){}\n";
-        s += "  return def;\n";
+        s += "    if (!ef) return def;\n";
+        s += "    var p = ef('スライダー');\n";
+        s += "    return (isFinite(p)) ? p : def;\n";
+        s += "  } catch(e){ return def; }\n";
         s += "}\n";
-        s += "function num(v, def){ return (typeof v === 'number' && isFinite(v)) ? v : def; }\n";
-        s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
-        s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
-        s += "var len = num(pick('ブラケット長', 0), 0);\n";
-        s += "var style = num(pick('ブラケットスタイル', 0), 0);\n";
+        s += "function num(v, def){ return (isFinite(v)) ? v : def; }\n";
+        s += "var enabled = num(pickSlider('コーナーブラケット', 0), 0);\n";
+        s += "var cornerEnabled = num(pickSlider('ブラケット " + cornerLabel + "', 0), 0);\n";
+        s += "var len = num(pickSlider('ブラケット長', 0), 0);\n";
+        s += "var style = num(pickSlider('ブラケットスタイル', 0), 0);\n";
         s += "var pts, tangents;\n";
         s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
         s += "  pts = [[0,0],[0,0],[0,0]];\n";
@@ -573,8 +570,7 @@
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
         s += "  var dy = " + dirY + " * sign * len * scale;\n";
-        s += "  if (!isFinite(dx)) dx = 0;\n";
-        s += "  if (!isFinite(dy)) dy = 0;\n";
+        s += "  dx = num(dx, 0); dy = num(dy, 0);\n";
         s += "  // Offset so the corner sits at the group's origin\n";
         s += "  pts = [[-dx/2, dy/2],[ -dx/2, -dy/2 ], [ dx/2, -dy/2 ]];\n";
         s += "}\n";
@@ -585,43 +581,39 @@
 
     function buildBracketDebugExpr(cornerLabel, dirX, dirY, mode) {
         var s = "";
-        s += "function pick(name, def){\n";
+        s += "function pickSlider(name, def){\n";
         s += "  try {\n";
         s += "    var ef = effect(name);\n";
-        s += "    if (ef){\n";
-        s += "      var p = ef.property('ADBE Slider Control-0001');\n";
-        s += "      if (!p) p = ef.property(1);\n";
-        s += "      if (p && isFinite(p.value)) return p.value;\n";
-        s += "    }\n";
-        s += "  } catch(e){}\n";
-        s += "  return def;\n";
+        s += "    if (!ef) return def;\n";
+        s += "    var p = ef('スライダー');\n";
+        s += "    return (isFinite(p)) ? p : def;\n";
+        s += "  } catch(e){ return def; }\n";
         s += "}\n";
-        s += "function num(v, def){ return (typeof v === 'number' && isFinite(v)) ? v : def; }\n";
-        s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
+        s += "function num(v, def){ return (isFinite(v)) ? v : def; }\n";
+        s += "var enabled = num(pickSlider('コーナーブラケット', 0), 0);\n";
         if (cornerLabel) {
-            s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
+            s += "var cornerEnabled = num(pickSlider('ブラケット " + cornerLabel + "', 0), 0);\n";
         } else {
             s += "var cornerEnabled = 1;\n";
         }
-        s += "var len = num(pick('ブラケット長', 0), 0);\n";
-        s += "var style = num(pick('ブラケットスタイル', 0), 0);\n";
+        s += "var len = num(pickSlider('ブラケット長', 0), 0);\n";
+        s += "var style = num(pickSlider('ブラケットスタイル', 0), 0);\n";
         s += "if (enabled < 0.5" + (cornerLabel ? " || cornerEnabled < 0.5" : "") + "){\n";
         if (mode === "point") {
             s += "  [0,0];\n";
         } else {
-            s += "  0;\n";
+            s += "  [0,0];\n";
         }
         s += "} else {\n";
         s += "  var sign = (style > 0.5 && style < 1.5) ? -1 : 1;\n";
         s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len * scale;\n";
         s += "  var dy = " + dirY + " * sign * len * scale;\n";
-        s += "  if (!isFinite(dx)) dx = 0;\n";
-        s += "  if (!isFinite(dy)) dy = 0;\n";
+        s += "  dx = num(dx, 0); dy = num(dy, 0);\n";
         if (mode === "point") {
             s += "  [dx, dy];\n";
         } else {
-            s += "  len * scale;\n";
+            s += "  [len * scale, sign];\n";
         }
         s += "}\n";
         return s;
