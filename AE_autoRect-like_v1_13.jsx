@@ -507,6 +507,18 @@
             return col.property("ADBE Color Control-0001");
         }
 
+        function ensurePoint(name, def){
+            var pt = fx.property(name);
+            if (!pt) {
+                pt = fx.addProperty("ADBE Point Control");
+                pt.name = name;
+            }
+            if (def) {
+                pt.property("ADBE Point Control-0001").setValue(def);
+            }
+            return pt.property("ADBE Point Control-0001");
+        }
+
         ensureSlider("コーナーブラケット", opt.bracketOn ? 1 : 0);
         ensureSlider("ブラケット長", opt.bracketLength || 20);
         ensureSlider("ブラケット線幅", opt.bracketStrokeWidth || opt.strokeWidth || 4);
@@ -516,6 +528,22 @@
         ensureSlider("ブラケット 右下", opt.bracketBR ? 1 : 0);
         ensureSlider("ブラケット 左下", opt.bracketBL ? 1 : 0);
         ensureColor("ブラケット色", opt.bracketColor || opt.strokeColor || [1,1,1]);
+
+        // Debug readouts for bracket expressions
+        var dbgLen = ensureSlider("DBG ブラケット適用長", 0);
+        applyExpression(dbgLen, buildBracketDebugExpr(null, 0, 0, "len"));
+
+        var dbgTL = ensurePoint("DBG ブラケット 左上", [0,0]);
+        applyExpression(dbgTL, buildBracketDebugExpr("左上", 1, 1, "point"));
+
+        var dbgTR = ensurePoint("DBG ブラケット 右上", [0,0]);
+        applyExpression(dbgTR, buildBracketDebugExpr("右上", -1, 1, "point"));
+
+        var dbgBR = ensurePoint("DBG ブラケット 右下", [0,0]);
+        applyExpression(dbgBR, buildBracketDebugExpr("右下", -1, -1, "point"));
+
+        var dbgBL = ensurePoint("DBG ブラケット 左下", [0,0]);
+        applyExpression(dbgBL, buildBracketDebugExpr("左下", 1, -1, "point"));
     }
 
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
@@ -548,6 +576,46 @@
         s += "}\n";
         s += "tangents = []; for (var i=0;i<pts.length;i++){ tangents.push([0,0]); }\n";
         s += "createPath(pts, tangents, tangents, false);\n";
+        return s;
+    }
+
+    function buildBracketDebugExpr(cornerLabel, dirX, dirY, mode) {
+        var s = "";
+        s += "function pick(name, def){\n";
+        s += "  try {\n";
+        s += "    var ef = effect(name);\n";
+        s += "    if (ef){ var p = ef(1); if (p && isFinite(p.value)) return p.value; }\n";
+        s += "  } catch(e){}\n";
+        s += "  return def;\n";
+        s += "}\n";
+        s += "function num(v, def){ return (typeof v === 'number' && isFinite(v)) ? v : def; }\n";
+        s += "var enabled = num(pick('コーナーブラケット', 0), 0);\n";
+        if (cornerLabel) {
+            s += "var cornerEnabled = num(pick('ブラケット " + cornerLabel + "', 0), 0);\n";
+        } else {
+            s += "var cornerEnabled = 1;\n";
+        }
+        s += "var len = num(pick('ブラケット長', 0), 0);\n";
+        s += "var style = num(pick('ブラケットスタイル', 0), 0);\n";
+        s += "if (enabled < 0.5" + (cornerLabel ? " || cornerEnabled < 0.5" : "") + "){\n";
+        if (mode === "point") {
+            s += "  [0,0];\n";
+        } else {
+            s += "  0;\n";
+        }
+        s += "} else {\n";
+        s += "  var sign = (style > 0.5 && style < 1.5) ? -1 : 1;\n";
+        s += "  var scale = (style > 1.5) ? 0.75 : 1;\n";
+        s += "  var dx = " + dirX + " * sign * len * scale;\n";
+        s += "  var dy = " + dirY + " * sign * len * scale;\n";
+        s += "  if (!isFinite(dx)) dx = 0;\n";
+        s += "  if (!isFinite(dy)) dy = 0;\n";
+        if (mode === "point") {
+            s += "  [dx, dy];\n";
+        } else {
+            s += "  len * scale;\n";
+        }
+        s += "}\n";
         return s;
     }
 
