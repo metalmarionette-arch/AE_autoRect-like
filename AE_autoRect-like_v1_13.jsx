@@ -289,6 +289,8 @@
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
         s += "var upright = pickSlider('回転対応ボックス', 0);\n";
+        s += "var anchorOffX = pickSlider('アンカー オフセットX', 0);\n";
+        s += "var anchorOffY = pickSlider('アンカー オフセットY', 0);\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
