@@ -406,7 +406,8 @@
         s += "  var sign = (style >= 0.5) ? -1 : 1;\n";
         s += "  var dx = " + dirX + " * sign * len;\n";
         s += "  var dy = " + dirY + " * sign * len;\n";
-        s += "  path = createPath([[0,0],[dx,0],[dx,dy]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        // コーナー(0,0)を曲がり点にし、縦→曲がり→横の順で描画
+        s += "  path = createPath([[0,dy],[0,0],[dx,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
         s += "}\n";
         s += "path;\n";
         return s;
@@ -557,14 +558,17 @@
         var g = group.property("Contents");
         var stroke = null, fill = null;
 
+        // 先にフィルを追加し、最後に線を追加することで、線が最前面に表示されるようにする
+        if (opt.fillOn) {
+            fill = g.addProperty("ADBE Vector Graphic - Fill");
+            if (opt.fillColor) fill.property("ADBE Vector Fill Color").setValue(opt.fillColor);
+        }
         if (opt.strokeOn) {
             stroke = g.addProperty("ADBE Vector Graphic - Stroke");
             stroke.property("ADBE Vector Stroke Width").setValue(opt.strokeWidth);
             if (opt.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(opt.strokeColor);
-        }
-        if (opt.fillOn) {
-            fill = g.addProperty("ADBE Vector Graphic - Fill");
-            if (opt.fillColor) fill.property("ADBE Vector Fill Color").setValue(opt.fillColor);
+            // 念のため線を末尾に移動しておく（フィルやパスより下に配置）
+            try { stroke.moveTo(g.numProperties); } catch(e) {}
         }
         return {stroke:stroke, fill:fill};
     }
@@ -654,11 +658,6 @@
         root.name = "CornerBrackets";
         var rootContents = root.property("Contents");
 
-        var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
-        var brStrokeW = option.bracketStrokeWidth || option.strokeWidth || 4;
-        stroke.property("ADBE Vector Stroke Width").setValue(brStrokeW);
-        if (option.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(option.strokeColor);
-
         var corners = [
             {label:"左上", cx:0, cy:0, dx:1,  dy:1},
             {label:"右上", cx:1, cy:0, dx:-1, dy:1},
@@ -676,6 +675,13 @@
             var posProp = gp.property("Transform").property("Position");
             applyExpression(posProp, buildBracketPosExpr(mode, targetNames, includeExtents, c.cx, c.cy));
         }
+
+        // ストロークは全てのブラケットパスの後ろ（下）に配置して適用する
+        var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
+        var brStrokeW = option.bracketStrokeWidth || option.strokeWidth || 4;
+        stroke.property("ADBE Vector Stroke Width").setValue(brStrokeW);
+        if (option.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(option.strokeColor);
+        try { stroke.moveTo(rootContents.numProperties); } catch(e) {}
     }
 
     function createAutoRectForTargets(comp, targets, option) {
