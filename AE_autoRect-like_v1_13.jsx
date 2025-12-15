@@ -1,8 +1,9 @@
 ﻿/*==============================================================================
     オート矩形ツール（テキスト追従）修正版
-    v1.1.0
+    v1.1.1
 
     修正履歴:
+      v1.1.1: コーナーブラケット機能を復活し、アンカー追従とオプションUIを整理。
       v1.1.0: 9ポイントアンカー、％余白、回転対応ボックスを追加。コーナーブラケット機能は削除。
       v1.0.4: 「余白固定(新)」実行時、長方形パスの検索処理(getRectProps)の
               バグを修正。これによりエクスプレッションが正しく更新されるよう対応。
@@ -391,6 +392,137 @@
         return s;
     }
 
+    function buildBracketPathExpr(cornerLabel, dirX, dirY) {
+        var s = "";
+        s += "function pick(name, def){ var ef = effect(name); if(!ef) return def; var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }\\n";
+        s += "var enabled = pick('コーナーブラケット', 0);\\n";
+        s += "var cornerEnabled = pick('ブラケット " + cornerLabel + "', 0);\\n";
+        s += "var path;\\n";
+        s += "if (enabled < 0.5 || cornerEnabled < 0.5){\\n";
+        s += "  path = createPath([[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\\n";
+        s += "} else {\\n";
+        s += "  var len = pick('ブラケット長', 0);\\n";
+        s += "  var style = pick('ブラケットスタイル', 0);\\n";
+        s += "  var sign = (style >= 0.5) ? -1 : 1;\\n";
+        s += "  var dx = " + dirX + " * sign * len;\\n";
+        s += "  var dy = " + dirY + " * sign * len;\\n";
+        s += "  path = createPath([[0,0],[dx,0],[dx,dy]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\\n";
+        s += "}\\n";
+        s += "path;\\n";
+        return s;
+    }
+
+    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, anchorOverride) {
+        var inc = includeExtents ? "true" : "false";
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\\n";
+        s += "var upright = pickSlider('回転対応ボックス', 0);\\n";
+        s += "var anchorOffX = pickSlider('アンカー オフセットX', 0);\\n";
+        s += "var anchorOffY = pickSlider('アンカー オフセットY', 0);\\n";
+        s += "function padVals(r){\\n";
+        s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\\n";
+        s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\\n";
+        s += "  return [px, py];\\n";
+        s += "}\\n";
+        s += "function clamp01(v){ return Math.max(0, Math.min(1, v)); }\\n";
+        if (!anchorOverride) {
+            s += "var ax = clamp01(pickSlider('アンカー X', 0.5));\\n";
+            s += "var ay = clamp01(pickSlider('アンカー Y', 0.5));\\n";
+        } else {
+            s += "var ax = " + anchorOverride.x + ";\\n";
+            s += "var ay = " + anchorOverride.y + ";\\n";
+        }
+        if (mode === "parent") {
+            s += "var L = parent;\\n";
+            s += "if (L){\\n";
+            s += "  var r = L.sourceRectAtTime(time,"+inc+");\\n";
+            s += "  var p = padVals(r);\\n";
+            s += "  var px = p[0], py = p[1];\\n";
+            s += "  var baseW = Math.max(0, r.width + px*2);\\n";
+            s += "  var baseH = Math.max(0, r.height + py*2);\\n";
+            s += "  var anchorComp = L.toComp([ r.left - px + baseW*ax + anchorOffX, r.top - py + baseH*ay + anchorOffY ]);\\n";
+            s += "  if (upright > 0.5){\\n";
+            s += "    var th = L.transform.rotation * Math.PI/180;\\n";
+            s += "    var c = Math.cos(th), s1 = Math.sin(th);\\n";
+            s += "    var w = Math.abs(c)*baseW + Math.abs(s1)*baseH;\\n";
+            s += "    var h = Math.abs(s1)*baseW + Math.abs(c)*baseH;\\n";
+            s += "    var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\\n";
+            s += "    var corner = [center[0] + w*(" + cornerX + "-0.5), center[1] + h*(" + cornerY + "-0.5)];\\n";
+            s += "    fromWorld(corner);\\n";
+            s += "  } else {\\n";
+            s += "    var center2 = [anchorComp[0] + baseW*(0.5-ax), anchorComp[1] + baseH*(0.5-ay)];\\n";
+            s += "    var corner2 = [center2[0] + baseW*(" + cornerX + "-0.5), center2[1] + baseH*(" + cornerY + "-0.5)];\\n";
+            s += "    fromWorld(corner2);\\n";
+            s += "  }\\n";
+            s += "}else{\\n";
+            s += "  [0,0];\\n";
+            s += "}\\n";
+        } else if (mode === "direct") {
+            s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\\\'") +"');\\n";
+            s += "if (L){\\n";
+            s += "  var r = L.sourceRectAtTime(time,"+inc+");\\n";
+            s += "  var p = padVals(r);\\n";
+            s += "  var px = p[0], py = p[1];\\n";
+            s += "  var baseW = Math.max(0, r.width + px*2);\\n";
+            s += "  var baseH = Math.max(0, r.height + py*2);\\n";
+            s += "  var anchorComp = L.toComp([ r.left - px + baseW*ax + anchorOffX, r.top - py + baseH*ay + anchorOffY ]);\\n";
+            s += "  if (upright > 0.5){\\n";
+            s += "    var th = L.transform.rotation * Math.PI/180;\\n";
+            s += "    var c = Math.cos(th), s1 = Math.sin(th);\\n";
+            s += "    var w = Math.abs(c)*baseW + Math.abs(s1)*baseH;\\n";
+            s += "    var h = Math.abs(s1)*baseW + Math.abs(c)*baseH;\\n";
+            s += "    var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\\n";
+            s += "    var corner = [center[0] + w*(" + cornerX + "-0.5), center[1] + h*(" + cornerY + "-0.5)];\\n";
+            s += "    fromWorld(corner);\\n";
+            s += "  } else {\\n";
+            s += "    var center2 = [anchorComp[0] + baseW*(0.5-ax), anchorComp[1] + baseH*(0.5-ay)];\\n";
+            s += "    var corner2 = [center2[0] + baseW*(" + cornerX + "-0.5), center2[1] + baseH*(" + cornerY + "-0.5)];\\n";
+            s += "    fromWorld(corner2);\\n";
+            s += "  }\\n";
+            s += "}else{\\n";
+            s += "  [0,0];\\n";
+            s += "}\\n";
+        } else {
+            s += "var names = [\n";
+            for (var i=0;i<targetNameList.length;i++){
+                s += "  '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
+            }
+            s += "];\n";
+            s += "function rectOf(L){\n";
+            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
+            s += "  var p1 = L.toComp([r.left, r.top]);\n";
+            s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
+            s += "  return [p1[0], p1[1], p2[0], p2[1]];\n";
+            s += "}\n";
+            s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+            s += "for (var i=0;i<names.length;i++){\n";
+            s += "  var L=thisComp.layer(names[i]);\n";
+            s += "  if(!L) continue;\n";
+            s += "  if(!L.sourceRectAtTime) continue;\n";
+            s += "  var rc=rectOf(L);\n";
+            s += "  l=Math.min(l,rc[0]);\n";
+            s += "  t=Math.min(t,rc[1]);\n";
+            s += "  r=Math.max(r,rc[2]);\n";
+            s += "  b=Math.max(b,rc[3]);\n";
+            s += "}\n";
+            s += "var baseW = Math.max(0, r - l);\n";
+            s += "var baseH = Math.max(0, b - t);\n";
+            s += "var p = padVals({width:baseW, height:baseH});\n";
+            s += "var px = p[0], py = p[1];\n";
+            s += "var w = baseW + px*2;\n";
+            s += "var h = baseH + py*2;\n";
+            s += "var anchorComp = [l - px + w*ax + anchorOffX, t - py + h*ay + anchorOffY];\n";
+            s += "var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
+            s += "var corner = [center[0] + w*(" + cornerX + "-0.5), center[1] + h*(" + cornerY + "-0.5)];\n";
+            s += "fromWorld(corner);\n";
+        }
+        return s;
+    }
+
+
 
     function buildRoundnessExpr() {
         return "var v = effect('角丸')('スライダー');\n" +
@@ -456,6 +588,24 @@
         addSlider("角丸", corner);
     }
 
+    function addBracketEffects(layer, opt) {
+        var fx = layer.property("ADBE Effect Parade");
+        function addSlider(name, val){
+            var sld = fx.addProperty("ADBE Slider Control");
+            sld.name = name;
+            sld.property("ADBE Slider Control-0001").setValue(val);
+            return sld;
+        }
+        addSlider("コーナーブラケット", opt.bracketOn ? 1 : 0);
+        addSlider("ブラケット長", opt.bracketLength || 0);
+        addSlider("ブラケットスタイル", opt.bracketStyle || 0);
+        var corners = opt.bracketCorners || {};
+        addSlider("ブラケット 左上", corners.lt ? 1 : 0);
+        addSlider("ブラケット 右上", corners.rt ? 1 : 0);
+        addSlider("ブラケット 左下", corners.lb ? 1 : 0);
+        addSlider("ブラケット 右下", corners.rb ? 1 : 0);
+    }
+
     function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var fx = layer.property("ADBE Effect Parade");
 
@@ -498,6 +648,36 @@
         prop.expressionEnabled = true;
     }
 
+    function addCornerBrackets(shapeLayer, mode, targetNames, option, includeExtents) {
+        var contents = shapeLayer.property("Contents");
+        var root = contents.addProperty("ADBE Vector Group");
+        root.name = "CornerBrackets";
+        var rootContents = root.property("Contents");
+
+        var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
+        var brStrokeW = option.bracketStrokeWidth || option.strokeWidth || 4;
+        stroke.property("ADBE Vector Stroke Width").setValue(brStrokeW);
+        if (option.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(option.strokeColor);
+
+        var corners = [
+            {label:"左上", cx:0, cy:0, dx:1,  dy:1},
+            {label:"右上", cx:1, cy:0, dx:-1, dy:1},
+            {label:"左下", cx:0, cy:1, dx:1,  dy:-1},
+            {label:"右下", cx:1, cy:1, dx:-1, dy:-1}
+        ];
+
+        for (var i=0;i<corners.length;i++){
+            var c = corners[i];
+            var gp = rootContents.addProperty("ADBE Vector Group");
+            gp.name = "Bracket " + c.label;
+            var pathShape = gp.property("Contents").addProperty("ADBE Vector Shape - Group");
+            var pathProp = pathShape.property("Path");
+            applyExpression(pathProp, buildBracketPathExpr(c.label, c.dx, c.dy));
+            var posProp = gp.property("Transform").property("Position");
+            applyExpression(posProp, buildBracketPosExpr(mode, targetNames, includeExtents, c.cx, c.cy));
+        }
+    }
+
     function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
@@ -535,6 +715,9 @@
             var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
             addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.anchor.x, option.anchor.y, option.anchorOffsetX, option.anchorOffsetY, option.uprightBox);
+            if (option.bracketOn) {
+                addBracketEffects(shape, option);
+            }
 
             var names = [];
             for (var i=0;i<targets.length;i++) names.push(targets[i].name);
@@ -544,6 +727,9 @@
             rect.property("Roundness").expression = buildRoundnessExpr();
 
             ensureStrokeFill(gp, option);
+            if (option.bracketOn) {
+                addCornerBrackets(shape, "multi", names, option, option.includeExtents);
+            }
 
             if (option.parentTo) {
                 shape.parent = topTgt;
@@ -592,6 +778,9 @@
                 var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
                 addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.anchor.x, option.anchor.y, option.anchorOffsetX, option.anchorOffsetY, option.uprightBox);
+                if (option.bracketOn) {
+                    addBracketEffects(shape, option);
+                }
 
                 var useParentMode = option.parentTo && !option.uprightBox;
                 var modeName = useParentMode ? "parent" : "direct";
@@ -603,6 +792,9 @@
                 rect.property("Roundness").expression = buildRoundnessExpr();
 
                 ensureStrokeFill(gp, option);
+                if (option.bracketOn) {
+                    addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
+                }
 
                 if (useParentMode) {
                     shape.parent = tgt;
@@ -1073,6 +1265,31 @@
             loadSetting("fillB", 0.9)
         ]);
 
+        var brPanel = opt.add("panel", undefined, "コーナーブラケット");
+        brPanel.orientation = "column";
+        brPanel.alignChildren = "left";
+        var brTop = brPanel.add("group");
+        var ckBracket = brTop.add("checkbox", undefined, "コーナーブラケット");
+        ckBracket.value = !!loadSetting("bracketOn", false);
+        brTop.add("statictext", undefined, "長さ");
+        var etBracketLen = brTop.add("edittext", undefined, String(loadSetting("bracketLen", 24)));
+        etBracketLen.characters = 5;
+        brTop.add("statictext", undefined, "スタイル");
+        var ddBracketStyle = brTop.add("dropdownlist", undefined, ["内向き","外向き"]);
+        var brStyleDef = num(loadSetting("bracketStyle", 0), 0);
+        ddBracketStyle.selection = (brStyleDef >= 1) ? 1 : 0;
+
+        var brRow = brPanel.add("group");
+        brRow.add("statictext", undefined, "角:");
+        var ckBrLT = brRow.add("checkbox", undefined, "左上");
+        var ckBrRT = brRow.add("checkbox", undefined, "右上");
+        var ckBrLB = brRow.add("checkbox", undefined, "左下");
+        var ckBrRB = brRow.add("checkbox", undefined, "右下");
+        ckBrLT.value = !!loadSetting("bracketLT", true);
+        ckBrRT.value = !!loadSetting("bracketRT", true);
+        ckBrLB.value = !!loadSetting("bracketLB", true);
+        ckBrRB.value = !!loadSetting("bracketRB", true);
+
         // マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
         pm.orientation   = "row";
@@ -1128,6 +1345,10 @@
             var padY   = num(etPadY.text, 8);
             var corner = clamp(num(etCorner.text, 0), 0, 100);
             var strokeW = Math.max(0, num(etStrokeW.text, 4));
+            var bracketOn = ckBracket.value;
+            var bracketLen = num(etBracketLen.text, 24);
+            var bracketStyle = ddBracketStyle.selection ? ddBracketStyle.selection.index : 0;
+            var bracketCorners = {lt: ckBrLT.value, rt: ckBrRT.value, lb: ckBrLB.value, rb: ckBrRB.value};
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
             var anchorVal = {x: anchorState.x, y: anchorState.y};
@@ -1147,6 +1368,13 @@
             saveSetting("strokeOn", ckStroke.value);
             saveSetting("strokeW", strokeW);
             saveSetting("fillOn", ckFill.value);
+            saveSetting("bracketOn", bracketOn);
+            saveSetting("bracketLen", bracketLen);
+            saveSetting("bracketStyle", bracketStyle);
+            saveSetting("bracketLT", ckBrLT.value);
+            saveSetting("bracketRT", ckBrRT.value);
+            saveSetting("bracketLB", ckBrLB.value);
+            saveSetting("bracketRB", ckBrRB.value);
             var strokeC = strokeSwatch.getColor();
             var fillC   = fillSwatch.getColor();
             saveSetting("strokeR", strokeC[0]);
@@ -1177,6 +1405,11 @@
                 anchorOffsetX: anchorOffX,
                 anchorOffsetY: anchorOffY,
                 uprightBox:    upright,
+                bracketOn:     bracketOn,
+                bracketLength: bracketLen,
+                bracketStyle:  bracketStyle,
+                bracketCorners: bracketCorners,
+                bracketStrokeWidth: strokeW,
                 strokeOn:      ckStroke.value,
                 strokeWidth:   strokeW,
                 strokeColor:   strokeC,
