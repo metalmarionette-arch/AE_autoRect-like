@@ -1,8 +1,9 @@
 ﻿/*==============================================================================
     オート矩形ツール（テキスト追従）修正版
-    v1.1.1
+    v1.1.2
 
     修正履歴:
+      v1.1.2: アンカー指定を廃止し、余白後サイズを左右/上下方向に割合縮小できるスライダーを追加。
       v1.1.1: コーナーブラケット機能を復活し、アンカー追従とオプションUIを整理。
       v1.1.0: 9ポイントアンカー、％余白、回転対応ボックスを追加。コーナーブラケット機能は削除。
       v1.0.4: 「余白固定(新)」実行時、長方形パスの検索処理(getRectProps)の
@@ -198,13 +199,16 @@
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
         s += "var upright = pickSlider('回転対応ボックス', 0);\n";
-        s += "var anchorOffX = pickSlider('アンカー オフセットX', 0);\n";
-        s += "var anchorOffY = pickSlider('アンカー オフセットY', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
 
         if (mode === "parent") {
             s += "var L = parent;\n";
@@ -214,14 +218,16 @@
             s += "  var px = p[0], py = p[1];\n";
             s += "  var w0 = Math.max(0, r.width  + px*2);\n";
             s += "  var h0 = Math.max(0, r.height + py*2);\n";
+            s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
+            s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
             s += "  if (upright > 0.5){\n";
             s += "    var th = L.transform.rotation * Math.PI/180;\n";
             s += "    var c = Math.cos(th), s1 = Math.sin(th);\n";
-            s += "    var w = Math.abs(c)*w0 + Math.abs(s1)*h0;\n";
-            s += "    var h = Math.abs(s1)*w0 + Math.abs(c)*h0;\n";
+            s += "    var w = Math.abs(c)*w1 + Math.abs(s1)*h1;\n";
+            s += "    var h = Math.abs(s1)*w1 + Math.abs(c)*h1;\n";
             s += "    [w,h];\n";
             s += "  } else {\n";
-            s += "    [w0,h0];\n";
+            s += "    [w1,h1];\n";
             s += "  }\n";
             s += "}else{\n";
             s += "  [0,0];\n";
@@ -235,14 +241,16 @@
             s += "  var px = p[0], py = p[1];\n";
             s += "  var w0 = Math.max(0, r.width  + px*2);\n";
             s += "  var h0 = Math.max(0, r.height + py*2);\n";
+            s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
+            s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
             s += "  if (upright > 0.5){\n";
             s += "    var th = L.transform.rotation * Math.PI/180;\n";
             s += "    var c = Math.cos(th), s1 = Math.sin(th);\n";
-            s += "    var w = Math.abs(c)*w0 + Math.abs(s1)*h0;\n";
-            s += "    var h = Math.abs(s1)*w0 + Math.abs(c)*h0;\n";
+            s += "    var w = Math.abs(c)*w1 + Math.abs(s1)*h1;\n";
+            s += "    var h = Math.abs(s1)*w1 + Math.abs(c)*h1;\n";
             s += "    [w,h];\n";
             s += "  } else {\n";
-            s += "    [w0,h0];\n";
+            s += "    [w1,h1];\n";
             s += "  }\n";
             s += "}else{\n";
             s += "  [0,0];\n";
@@ -275,14 +283,16 @@
             s += "var baseH = Math.max(0, b - t);\n";
             s += "var p = padVals({width:baseW, height:baseH});\n";
             s += "var px = p[0], py = p[1];\n";
-            s += "var w = baseW + px*2;\n";
-            s += "var h = baseH + py*2;\n";
-            s += "[w, h];\n";
+            s += "var w0 = Math.max(0, baseW + px*2);\n";
+            s += "var h0 = Math.max(0, baseH + py*2);\n";
+            s += "var w1 = Math.max(0, w0 * (1 - fx));\n";
+            s += "var h1 = Math.max(0, h0 * (1 - fy));\n";
+            s += "[w1, h1];\n";
         }
         return s;
     }
 
-    function buildRectPosExpr(mode, targetNameList, includeExtents, anchorOverride) {
+    function buildRectPosExpr(mode, targetNameList, includeExtents) {
         var inc = includeExtents ? "true" : "false";
         var s  = "";
         s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
@@ -290,21 +300,16 @@
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
         s += "var upright = pickSlider('回転対応ボックス', 0);\n";
-        s += "var anchorOffX = pickSlider('アンカー オフセットX', 0);\n";
-        s += "var anchorOffY = pickSlider('アンカー オフセットY', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function clamp01(v){ return Math.max(0, Math.min(1, v)); }\n";
-        if (!anchorOverride) {
-            s += "var ax = clamp01(pickSlider('アンカー X', 0.5));\n";
-            s += "var ay = clamp01(pickSlider('アンカー Y', 0.5));\n";
-        } else {
-            s += "var ax = " + anchorOverride.x + ";\n";
-            s += "var ay = " + anchorOverride.y + ";\n";
-        }
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
 
         if (mode === "parent") {
             s += "var L = parent;\n";
@@ -314,18 +319,18 @@
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, r.width + px*2);\n";
             s += "  var baseH = Math.max(0, r.height + py*2);\n";
-            s += "  var anchorPt = [ r.left - px + baseW*ax + anchorOffX, r.top - py + baseH*ay + anchorOffY ];\n";
+            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
+            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
+            s += "  var leftPad = r.left - px;\n";
+            s += "  var topPad  = r.top  - py;\n";
+            s += "  var cx = (shrinkX > 0.0001) ? (leftPad + baseW - w/2) : (shrinkX < -0.0001 ? (leftPad + w/2) : (leftPad + baseW/2));\n";
+            s += "  var cy = (shrinkY > 0.0001) ? (topPad + h/2) : (shrinkY < -0.0001 ? (topPad + baseH - h/2) : (topPad + baseH/2));\n";
             s += "  if (upright > 0.5){\n";
-            s += "    var anchorComp = L.toComp(anchorPt);\n";
-            s += "    var th = L.transform.rotation * Math.PI/180;\n";
-            s += "    var c = Math.cos(th), s1 = Math.sin(th);\n";
-            s += "    var w = Math.abs(c)*baseW + Math.abs(s1)*baseH;\n";
-            s += "    var h = Math.abs(s1)*baseW + Math.abs(c)*baseH;\n";
-            s += "    var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
+            s += "    var centerComp = L.toComp([cx, cy]);\n";
+            s += "    var center = [centerComp[0], centerComp[1]];\n";
             s += "    fromWorld(center);\n";
             s += "  } else {\n";
-            s += "    var centerLayer = [anchorPt[0] + baseW*(0.5-ax), anchorPt[1] + baseH*(0.5-ay)];\n";
-            s += "    var centerComp = L.toComp(centerLayer);\n";
+            s += "    var centerComp = L.toComp([cx, cy]);\n";
             s += "    fromWorld(centerComp);\n";
             s += "  }\n";
             s += "}else{\n";
@@ -340,18 +345,18 @@
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, r.width + px*2);\n";
             s += "  var baseH = Math.max(0, r.height + py*2);\n";
-            s += "  var anchorPt = [ r.left - px + baseW*ax + anchorOffX, r.top - py + baseH*ay + anchorOffY ];\n";
+            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
+            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
+            s += "  var leftPad = r.left - px;\n";
+            s += "  var topPad  = r.top  - py;\n";
+            s += "  var cx = (shrinkX > 0.0001) ? (leftPad + baseW - w/2) : (shrinkX < -0.0001 ? (leftPad + w/2) : (leftPad + baseW/2));\n";
+            s += "  var cy = (shrinkY > 0.0001) ? (topPad + h/2) : (shrinkY < -0.0001 ? (topPad + baseH - h/2) : (topPad + baseH/2));\n";
             s += "  if (upright > 0.5){\n";
-            s += "    var anchorComp = L.toComp(anchorPt);\n";
-            s += "    var th = L.transform.rotation * Math.PI/180;\n";
-            s += "    var c = Math.cos(th), s1 = Math.sin(th);\n";
-            s += "    var w = Math.abs(c)*baseW + Math.abs(s1)*baseH;\n";
-            s += "    var h = Math.abs(s1)*baseW + Math.abs(c)*baseH;\n";
-            s += "    var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
+            s += "    var centerComp = L.toComp([cx, cy]);\n";
+            s += "    var center = [centerComp[0], centerComp[1]];\n";
             s += "    fromWorld(center);\n";
             s += "  } else {\n";
-            s += "    var centerLayer = [anchorPt[0] + baseW*(0.5-ax), anchorPt[1] + baseH*(0.5-ay)];\n";
-            s += "    var centerComp = L.toComp(centerLayer);\n";
+            s += "    var centerComp = L.toComp([cx, cy]);\n";
             s += "    fromWorld(centerComp);\n";
             s += "  }\n";
             s += "}else{\n";
@@ -385,11 +390,15 @@
             s += "var baseH = Math.max(0, b - t);\n";
             s += "var p = padVals({width:baseW, height:baseH});\n";
             s += "var px = p[0], py = p[1];\n";
-            s += "var w = baseW + px*2;\n";
-            s += "var h = baseH + py*2;\n";
-            s += "var anchorComp = [l - px + w*ax + anchorOffX, t - py + h*ay + anchorOffY];\n";
-            s += "var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
-            s += "fromWorld(center);\n";
+            s += "var w0 = Math.max(0, baseW + px*2);\n";
+            s += "var h0 = Math.max(0, baseH + py*2);\n";
+            s += "var w = Math.max(0, w0 * (1 - fx));\n";
+            s += "var h = Math.max(0, h0 * (1 - fy));\n";
+            s += "var leftPad = l - px;\n";
+            s += "var topPad  = t - py;\n";
+            s += "var cx = (shrinkX > 0.0001) ? (leftPad + w0 - w/2) : (shrinkX < -0.0001 ? (leftPad + w/2) : (leftPad + w0/2));\n";
+            s += "var cy = (shrinkY > 0.0001) ? (topPad + h/2) : (shrinkY < -0.0001 ? (topPad + h0 - h/2) : (topPad + h0/2));\n";
+            s += "fromWorld([cx, cy]);\n";
         }
         return s;
     }
@@ -415,7 +424,7 @@
         return s;
     }
 
-    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, anchorOverride) {
+    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY) {
         var inc = includeExtents ? "true" : "false";
         var s  = "";
         s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\n";
@@ -423,21 +432,16 @@
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
         s += "var upright = pickSlider('回転対応ボックス', 0);\n";
-        s += "var anchorOffX = pickSlider('アンカー オフセットX', 0);\n";
-        s += "var anchorOffY = pickSlider('アンカー オフセットY', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function clamp01(v){ return Math.max(0, Math.min(1, v)); }\n";
-        if (!anchorOverride) {
-            s += "var ax = clamp01(pickSlider('アンカー X', 0.5));\n";
-            s += "var ay = clamp01(pickSlider('アンカー Y', 0.5));\n";
-        } else {
-            s += "var ax = " + anchorOverride.x + ";\n";
-            s += "var ay = " + anchorOverride.y + ";\n";
-        }
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
@@ -446,18 +450,24 @@
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, r.width + px*2);\n";
             s += "  var baseH = Math.max(0, r.height + py*2);\n";
-            s += "  var anchorPt = [ r.left - px + baseW*ax + anchorOffX, r.top - py + baseH*ay + anchorOffY ];\n";
+            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
+            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
+            s += "  var leftPad = r.left - px;\n";
+            s += "  var topPad  = r.top  - py;\n";
+            s += "  var leftEdge = (shrinkX > 0.0001) ? (leftPad + baseW - w) : leftPad;\n";
+            s += "  var topEdge  = (shrinkY < -0.0001) ? (topPad + baseH - h) : topPad;\n";
+            s += "  var cx = leftEdge + w/2;\n";
+            s += "  var cy = topEdge + h/2;\n";
             s += "  if (upright > 0.5){\n";
-            s += "    var anchorComp = L.toComp(anchorPt);\n";
             s += "    var th = L.transform.rotation * Math.PI/180;\n";
             s += "    var c = Math.cos(th), s1 = Math.sin(th);\n";
-            s += "    var w = Math.abs(c)*baseW + Math.abs(s1)*baseH;\n";
-            s += "    var h = Math.abs(s1)*baseW + Math.abs(c)*baseH;\n";
-            s += "    var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
-            s += "    var corner = [center[0] + w*(" + cornerX + "-0.5), center[1] + h*(" + cornerY + "-0.5)];\n";
+            s += "    var wU = Math.abs(c)*w + Math.abs(s1)*h;\n";
+            s += "    var hU = Math.abs(s1)*w + Math.abs(c)*h;\n";
+            s += "    var centerComp = L.toComp([cx, cy]);\n";
+            s += "    var corner = [centerComp[0] + wU*(" + cornerX + "-0.5), centerComp[1] + hU*(" + cornerY + "-0.5)];\n";
             s += "    fromWorld(corner);\n";
             s += "  } else {\n";
-            s += "    var cornerLayer = [anchorPt[0] + baseW*(" + cornerX + "-ax), anchorPt[1] + baseH*(" + cornerY + "-ay)];\n";
+            s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
             s += "    var cornerComp = L.toComp(cornerLayer);\n";
             s += "    fromWorld(cornerComp);\n";
             s += "  }\n";
@@ -472,18 +482,24 @@
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, r.width + px*2);\n";
             s += "  var baseH = Math.max(0, r.height + py*2);\n";
-            s += "  var anchorPt = [ r.left - px + baseW*ax + anchorOffX, r.top - py + baseH*ay + anchorOffY ];\n";
+            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
+            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
+            s += "  var leftPad = r.left - px;\n";
+            s += "  var topPad  = r.top  - py;\n";
+            s += "  var leftEdge = (shrinkX > 0.0001) ? (leftPad + baseW - w) : leftPad;\n";
+            s += "  var topEdge  = (shrinkY < -0.0001) ? (topPad + baseH - h) : topPad;\n";
+            s += "  var cx = leftEdge + w/2;\n";
+            s += "  var cy = topEdge + h/2;\n";
             s += "  if (upright > 0.5){\n";
-            s += "    var anchorComp = L.toComp(anchorPt);\n";
             s += "    var th = L.transform.rotation * Math.PI/180;\n";
             s += "    var c = Math.cos(th), s1 = Math.sin(th);\n";
-            s += "    var w = Math.abs(c)*baseW + Math.abs(s1)*baseH;\n";
-            s += "    var h = Math.abs(s1)*baseW + Math.abs(c)*baseH;\n";
-            s += "    var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
-            s += "    var corner = [center[0] + w*(" + cornerX + "-0.5), center[1] + h*(" + cornerY + "-0.5)];\n";
+            s += "    var wU = Math.abs(c)*w + Math.abs(s1)*h;\n";
+            s += "    var hU = Math.abs(s1)*w + Math.abs(c)*h;\n";
+            s += "    var centerComp = L.toComp([cx, cy]);\n";
+            s += "    var corner = [centerComp[0] + wU*(" + cornerX + "-0.5), centerComp[1] + hU*(" + cornerY + "-0.5)];\n";
             s += "    fromWorld(corner);\n";
             s += "  } else {\n";
-            s += "    var cornerLayer = [anchorPt[0] + baseW*(" + cornerX + "-ax), anchorPt[1] + baseH*(" + cornerY + "-ay)];\n";
+            s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
             s += "    var cornerComp = L.toComp(cornerLayer);\n";
             s += "    fromWorld(cornerComp);\n";
             s += "  }\n";
@@ -517,11 +533,17 @@
             s += "var baseH = Math.max(0, b - t);\n";
             s += "var p = padVals({width:baseW, height:baseH});\n";
             s += "var px = p[0], py = p[1];\n";
-            s += "var w = baseW + px*2;\n";
-            s += "var h = baseH + py*2;\n";
-            s += "var anchorComp = [l - px + w*ax + anchorOffX, t - py + h*ay + anchorOffY];\n";
-            s += "var center = [anchorComp[0] + w*(0.5-ax), anchorComp[1] + h*(0.5-ay)];\n";
-            s += "var corner = [center[0] + w*(" + cornerX + "-0.5), center[1] + h*(" + cornerY + "-0.5)];\n";
+            s += "var w0 = Math.max(0, baseW + px*2);\n";
+            s += "var h0 = Math.max(0, baseH + py*2);\n";
+            s += "var w = Math.max(0, w0 * (1 - fx));\n";
+            s += "var h = Math.max(0, h0 * (1 - fy));\n";
+            s += "var leftPad = l - px;\n";
+            s += "var topPad  = t - py;\n";
+            s += "var leftEdge = (shrinkX > 0.0001) ? (leftPad + w0 - w) : leftPad;\n";
+            s += "var topEdge  = (shrinkY < -0.0001) ? (topPad + h0 - h) : topPad;\n";
+            s += "var cx = leftEdge + w/2;\n";
+            s += "var cy = topEdge + h/2;\n";
+            s += "var corner = [cx + w*(" + cornerX + "-0.5), cy + h*(" + cornerY + "-0.5)];\n";
             s += "fromWorld(corner);\n";
         }
         return s;
@@ -577,7 +599,7 @@
         return {stroke:stroke, fill:fill};
     }
 
-    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, anchorX, anchorY, anchorOffX, anchorOffY, uprightBox) {
+    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY, uprightBox) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
             var sld = fx.addProperty("ADBE Slider Control");
@@ -588,10 +610,8 @@
         addSlider("余白 X", padX);
         addSlider("余白 Y", padY);
         addSlider("余白%モード", usePct ? 1 : 0);
-        addSlider("アンカー X", (anchorX === undefined ? 0.5 : anchorX));
-        addSlider("アンカー Y", (anchorY === undefined ? 0.5 : anchorY));
-        addSlider("アンカー オフセットX", anchorOffX || 0);
-        addSlider("アンカー オフセットY", anchorOffY || 0);
+        addSlider("縮小 左右%", shrinkX || 0);
+        addSlider("縮小 上下%", shrinkY || 0);
         addSlider("回転対応ボックス", uprightBox ? 1 : 0);
         addSlider("角丸", corner);
     }
@@ -724,7 +744,7 @@
             gp.name  = "AutoRect";
             var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
-            addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.anchor.x, option.anchor.y, option.anchorOffsetX, option.anchorOffsetY, option.uprightBox);
+            addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.shrinkX, option.shrinkY, option.uprightBox);
             if (option.bracketOn) {
                 addBracketEffects(shape, option);
             }
@@ -787,7 +807,7 @@
                 gp.name  = "AutoRect";
                 var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
-                addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.anchor.x, option.anchor.y, option.anchorOffsetX, option.anchorOffsetY, option.uprightBox);
+                addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.shrinkX, option.shrinkY, option.uprightBox);
                 if (option.bracketOn) {
                     addBracketEffects(shape, option);
                 }
@@ -1194,60 +1214,13 @@
         var ckUprightBox = rowUnit.add("checkbox", undefined, "回転対応ボックス（水平固定）");
         ckUprightBox.value = !!loadSetting("uprightBox", false);
 
-        var rowAnchor = opt.add("group");
-        rowAnchor.orientation = "column";
-        rowAnchor.alignChildren = ["left","top"];
-        rowAnchor.add("statictext", undefined, "アンカー（クリックで選択）");
-        var anchorDefs = [
-            {label:"左上", x:0, y:0},
-            {label:"上中央", x:0.5, y:0},
-            {label:"右上", x:1, y:0},
-            {label:"左中央", x:0, y:0.5},
-            {label:"中央", x:0.5, y:0.5},
-            {label:"右中央", x:1, y:0.5},
-            {label:"左下", x:0, y:1},
-            {label:"下中央", x:0.5, y:1},
-            {label:"右下", x:1, y:1}
-        ];
-        var anchorState = {
-            x: num(loadSetting("anchorX", 0.5), 0.5),
-            y: num(loadSetting("anchorY", 0.5), 0.5)
-        };
-        var gridGroup = rowAnchor.add("group");
-        gridGroup.orientation = "column";
-        gridGroup.spacing = 2;
-        var anchorButtons = [];
-        function updateAnchorButtons(){
-            for (var i=0;i<anchorButtons.length;i++){
-                var b = anchorButtons[i];
-                var selected = (Math.abs(b.u - anchorState.x) < 1e-6 && Math.abs(b.v - anchorState.y) < 1e-6);
-                b.text = selected ? "●" : "○";
-            }
-        }
-        for (var r=0;r<3;r++){
-            var rowGrp = gridGroup.add("group");
-            rowGrp.spacing = 2;
-            for (var c=0;c<3;c++){
-                var def = anchorDefs[r*3 + c];
-                var btn = rowGrp.add("button", [0,0,26,22], "○");
-                btn.u = def.x; btn.v = def.y;
-                btn.onClick = function(){
-                    anchorState.x = this.u;
-                    anchorState.y = this.v;
-                    updateAnchorButtons();
-                };
-                anchorButtons.push(btn);
-            }
-        }
-        updateAnchorButtons();
-
-        var anchorOffsetRow = rowAnchor.add("group");
-        anchorOffsetRow.add("statictext", undefined, "オフセット X");
-        var etAnchorOffX = anchorOffsetRow.add("edittext", undefined, String(loadSetting("anchorOffX", 0)));
-        etAnchorOffX.characters = 6;
-        anchorOffsetRow.add("statictext", undefined, "Y");
-        var etAnchorOffY = anchorOffsetRow.add("edittext", undefined, String(loadSetting("anchorOffY", 0)));
-        etAnchorOffY.characters = 6;
+        var rowShrink = opt.add("group");
+        rowShrink.add("statictext", undefined, "縮小 左右%");
+        var etShrinkX = rowShrink.add("edittext", undefined, String(loadSetting("shrinkX", 0)));
+        etShrinkX.characters = 6;
+        rowShrink.add("statictext", undefined, "上下%");
+        var etShrinkY = rowShrink.add("edittext", undefined, String(loadSetting("shrinkY", 0)));
+        etShrinkY.characters = 6;
 
         var row2 = opt.add("group");
         var ckExt = row2.add("checkbox", undefined, "段落テキストの拡張境界を含める（Include Extents）");
@@ -1361,18 +1334,15 @@
             var bracketCorners = {lt: ckBrLT.value, rt: ckBrRT.value, lb: ckBrLB.value, rb: ckBrRB.value};
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
-            var anchorVal = {x: anchorState.x, y: anchorState.y};
-            var anchorOffX = num(etAnchorOffX.text, 0);
-            var anchorOffY = num(etAnchorOffY.text, 0);
+            var shrinkX = num(etShrinkX.text, 0);
+            var shrinkY = num(etShrinkY.text, 0);
             var upright = ckUprightBox.value;
             saveSetting("padX", padX);
             saveSetting("padY", padY);
             saveSetting("corner", corner);
             saveSetting("padUnit", padUnit);
-            saveSetting("anchorX", anchorVal.x);
-            saveSetting("anchorY", anchorVal.y);
-            saveSetting("anchorOffX", anchorOffX);
-            saveSetting("anchorOffY", anchorOffY);
+            saveSetting("shrinkX", shrinkX);
+            saveSetting("shrinkY", shrinkY);
             saveSetting("uprightBox", upright);
             saveSetting("includeExt", ckExt.value);
             saveSetting("strokeOn", ckStroke.value);
@@ -1411,9 +1381,8 @@
                 cornerRadius:  corner,
                 paddingUnit:   padUnit,
                 usePaddingPercent: usePct,
-                anchor:        anchorVal,
-                anchorOffsetX: anchorOffX,
-                anchorOffsetY: anchorOffY,
+                shrinkX:       shrinkX,
+                shrinkY:       shrinkY,
                 uprightBox:    upright,
                 bracketOn:     bracketOn,
                 bracketLength: bracketLen,
