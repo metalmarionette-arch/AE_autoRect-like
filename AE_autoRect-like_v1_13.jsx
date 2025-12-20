@@ -200,8 +200,8 @@
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
-        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "var shrinkX = " + sX + ";\n";
+        s += "var shrinkY = " + sY + ";\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -286,8 +286,8 @@
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
-        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "var shrinkX = " + sX + ";\n";
+        s += "var shrinkY = " + sY + ";\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -407,8 +407,8 @@
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
-        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "var shrinkX = " + sX + ";\n";
+        s += "var shrinkY = " + sY + ";\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -998,12 +998,6 @@
             }
 
             var shrinkXVal = 0, shrinkYVal = 0;
-            try {
-                var shrinkFx = fx.property("縮小 左右%");
-                if (shrinkFx) shrinkXVal = shrinkFx.property("ADBE Slider Control-0001").value;
-                var shrinkFy = fx.property("縮小 上下%");
-                if (shrinkFy) shrinkYVal = shrinkFy.property("ADBE Slider Control-0001").value;
-            } catch(eShrink){}
 
             // 親子付けモードっぽいかどうか（親＝ターゲットなら parent モード）
             var mode = (L.parent === target) ? "parent" : "direct";
@@ -1100,14 +1094,6 @@
         var ddPadUnit = rowUnit.add("dropdownlist", undefined, ["px", "%"]);
         var padUnitDef = String(loadSetting("padUnit", "px"));
         ddPadUnit.selection = (padUnitDef === "%") ? 1 : 0;
-
-        var rowShrink = opt.add("group");
-        rowShrink.add("statictext", undefined, "縮小 左右%");
-        var etShrinkX = rowShrink.add("edittext", undefined, String(loadSetting("shrinkX", 0)));
-        etShrinkX.characters = 6;
-        rowShrink.add("statictext", undefined, "上下%");
-        var etShrinkY = rowShrink.add("edittext", undefined, String(loadSetting("shrinkY", 0)));
-        etShrinkY.characters = 6;
 
         var row2 = opt.add("group");
         var ckExt = row2.add("checkbox", undefined, "段落テキストの拡張境界を含める（Include Extents）");
@@ -1231,14 +1217,12 @@
             var bracketStrokeW = Math.max(0, num(etBracketStroke.text, 4));
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
-            var shrinkX = num(etShrinkX.text, 0);
-            var shrinkY = num(etShrinkY.text, 0);
+            var shrinkX = 0;
+            var shrinkY = 0;
             saveSetting("padX", padX);
             saveSetting("padY", padY);
             saveSetting("corner", corner);
             saveSetting("padUnit", padUnit);
-            saveSetting("shrinkX", shrinkX);
-            saveSetting("shrinkY", shrinkY);
             saveSetting("includeExt", ckExt.value);
             saveSetting("strokeOn", ckStroke.value);
             saveSetting("strokeW", strokeW);
