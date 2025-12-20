@@ -1348,7 +1348,26 @@
                     }
                 }
 
-                var created = createAutoRectForTargets(comp, targets, opt);
+                var created = [];
+                try {
+                    created = createAutoRectForTargets(comp, targets, opt);
+                } catch(err) {
+                    alert("作成中にエラーが発生しました: " + err.toString());
+                }
+
+                // 万一作成数が 0 の場合は、親子付けなし・ブラケットなしでリトライ
+                if (created.length === 0 && targets.length > 0) {
+                    var fallbackOpt = {};
+                    for (var k in opt) if (opt.hasOwnProperty(k)) fallbackOpt[k] = opt[k];
+                    fallbackOpt.parentTo = false;
+                    fallbackOpt.bracketOn = false;
+                    try {
+                        created = createAutoRectForTargets(comp, targets, fallbackOpt);
+                    } catch(err2) {
+                        alert("作成リトライ時にエラーが発生しました: " + err2.toString());
+                    }
+                }
+
                 if (created.length === 0) {
                     alert("何も作成されませんでした。");
                 } else {
