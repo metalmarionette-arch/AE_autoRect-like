@@ -191,15 +191,17 @@
     // エクスプレッション生成
     // -----------------------------
     // mode: "parent" | "direct" | "multi"
-    function buildRectSizeExpr(mode, targetNameList, includeExtents) {
+    function buildRectSizeExpr(mode, targetNameList, includeExtents, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
         var s  = "";
         s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
-        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -275,15 +277,17 @@
         return s;
     }
 
-    function buildRectPosExpr(mode, targetNameList, includeExtents) {
+    function buildRectPosExpr(mode, targetNameList, includeExtents, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
         var s  = "";
         s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
-        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -394,15 +398,17 @@
         return s;
     }
 
-    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY) {
+    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
         var s  = "";
         s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\n";
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
-        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -553,7 +559,7 @@
         return {stroke:stroke, fill:fill};
     }
 
-    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY) {
+    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
             var sld = fx.addProperty("ADBE Slider Control");
@@ -564,14 +570,13 @@
         addSlider("余白 X", padX);
         addSlider("余白 Y", padY);
         addSlider("余白%モード", usePct ? 1 : 0);
-        addSlider("縮小 左右%", shrinkX || 0);
-        addSlider("縮小 上下%", shrinkY || 0);
         addSlider("線幅 調整", 0);
         addSlider("ブラケット線幅 調整", 0);
         addSlider("角丸", corner);
     }
 
     function addBracketEffects(layer, opt) {
+        opt = opt || {};
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
             var sld = fx.addProperty("ADBE Slider Control");
@@ -633,6 +638,7 @@
     }
 
     function addCornerBrackets(shapeLayer, mode, targetNames, option, includeExtents) {
+        option = option || {};
         var contents = shapeLayer.property("Contents");
         var root = contents.addProperty("ADBE Vector Group");
         root.name = "CornerBrackets";
@@ -653,7 +659,7 @@
             var pathProp = pathShape.property("Path");
             applyExpression(pathProp, buildBracketPathExpr(c.label, c.dx, c.dy));
             var posProp = gp.property("Transform").property("Position");
-            applyExpression(posProp, buildBracketPosExpr(mode, targetNames, includeExtents, c.cx, c.cy));
+            applyExpression(posProp, buildBracketPosExpr(mode, targetNames, includeExtents, c.cx, c.cy, option.shrinkX, option.shrinkY));
         }
 
         // ストロークは全てのブラケットパスの後ろ（下）に配置して適用する
@@ -692,22 +698,18 @@
             gp.name  = "AutoRect";
             var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
-            addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.shrinkX, option.shrinkY);
-            if (option.bracketOn) {
-                addBracketEffects(shape, option);
-            }
+            addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
+            addBracketEffects(shape, option);
 
             var names = [];
             for (var i=0;i<targets.length;i++) names.push(targets[i].name);
 
-            rect.property("Size").expression      = buildRectSizeExpr("multi", names, option.includeExtents);
-            rect.property("Position").expression  = buildRectPosExpr("multi", names, option.includeExtents);
+            rect.property("Size").expression      = buildRectSizeExpr("multi", names, option.includeExtents, option.shrinkX, option.shrinkY);
+            rect.property("Position").expression  = buildRectPosExpr("multi", names, option.includeExtents, option.shrinkX, option.shrinkY);
             rect.property("Roundness").expression = buildRoundnessExpr();
 
             ensureStrokeFill(gp, option);
-            if (option.bracketOn) {
-                addCornerBrackets(shape, "multi", names, option, option.includeExtents);
-            }
+            addCornerBrackets(shape, "multi", names, option, option.includeExtents);
 
             if (option.parentTo) {
                 shape.parent = topTgt;
@@ -750,24 +752,20 @@
                 gp.name  = "AutoRect";
                 var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
-                addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent, option.shrinkX, option.shrinkY);
-                if (option.bracketOn) {
-                    addBracketEffects(shape, option);
-                }
+                addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
+                addBracketEffects(shape, option);
 
                 var useParentMode = option.parentTo;
                 var modeName = useParentMode ? "parent" : "direct";
-                rect.property("Size").expression      = buildRectSizeExpr(modeName, [tgt.name], option.includeExtents);
-                rect.property("Position").expression  = buildRectPosExpr(modeName, [tgt.name], option.includeExtents);
+                rect.property("Size").expression      = buildRectSizeExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
+                rect.property("Position").expression  = buildRectPosExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
                 if (!useParentMode) {
                     linkLayerTransformByExpr(shape, tgt);
                 }
                 rect.property("Roundness").expression = buildRoundnessExpr();
 
                 ensureStrokeFill(gp, option);
-                if (option.bracketOn) {
-                    addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
-                }
+                addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
 
                 if (useParentMode) {
                     shape.parent = tgt;
@@ -999,6 +997,14 @@
                 continue;
             }
 
+            var shrinkXVal = 0, shrinkYVal = 0;
+            try {
+                var shrinkFx = fx.property("縮小 左右%");
+                if (shrinkFx) shrinkXVal = shrinkFx.property("ADBE Slider Control-0001").value;
+                var shrinkFy = fx.property("縮小 上下%");
+                if (shrinkFy) shrinkYVal = shrinkFy.property("ADBE Slider Control-0001").value;
+            } catch(eShrink){}
+
             // 親子付けモードっぽいかどうか（親＝ターゲットなら parent モード）
             var mode = (L.parent === target) ? "parent" : "direct";
 
@@ -1011,13 +1017,13 @@
 
                 // Size：元の AutoRect 式を再設定
                 if (props.size) {
-                    var szExpr = buildRectSizeExpr(mode, [target.name], includeExtents);
+                    var szExpr = buildRectSizeExpr(mode, [target.name], includeExtents, shrinkXVal, shrinkYVal);
                     applyExpression(props.size, szExpr);
                 }
 
                 // Position：元の AutoRect 式を再設定
                 if (props.pos) {
-                    var posExpr = buildRectPosExpr(mode, [target.name], includeExtents);
+                    var posExpr = buildRectPosExpr(mode, [target.name], includeExtents, shrinkXVal, shrinkYVal);
                     applyExpression(props.pos, posExpr);
                 }
 
@@ -1222,6 +1228,7 @@
             var bracketLen = num(etBracketLen.text, 24);
             var bracketStyle = ddBracketStyle.selection ? ddBracketStyle.selection.index : 0;
             var bracketCorners = {lt: ckBrLT.value, rt: ckBrRT.value, lb: ckBrLB.value, rb: ckBrRB.value};
+            var bracketStrokeW = Math.max(0, num(etBracketStroke.text, 4));
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
             var shrinkX = num(etShrinkX.text, 0);
