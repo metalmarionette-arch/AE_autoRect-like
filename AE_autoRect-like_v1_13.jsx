@@ -190,6 +190,53 @@
     // -----------------------------
     // エクスプレッション生成
     // -----------------------------
+    function buildLayerRectDataFunc(includeExtentsStr) {
+        var s = "";
+        s += "function layerRectData(L){\n";
+        s += "  var r = L.sourceRectAtTime(time,"+includeExtentsStr+");\n";
+        s += "  var p1 = L.toComp([r.left, r.top]);\n";
+        s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
+        s += "  var l = Math.min(p1[0], p2[0]);\n";
+        s += "  var t = Math.min(p1[1], p2[1]);\n";
+        s += "  var rgt = Math.max(p1[0], p2[0]);\n";
+        s += "  var btm = Math.max(p1[1], p2[1]);\n";
+        s += "  try{\n";
+        s += "    var src = L.source;\n";
+        s += "    if (src && src.numLayers){\n";
+        s += "      l=1e9; t=1e9; rgt=-1e9; btm=-1e9;\n";
+        s += "      for (var i=1;i<=src.numLayers;i++){\n";
+        s += "        var sL = src.layer(i);\n";
+        s += "        if (!sL || !sL.sourceRectAtTime) continue;\n";
+        s += "        var rr = sL.sourceRectAtTime(time,"+includeExtentsStr+");\n";
+        s += "        var q1 = L.toComp(sL.toComp([rr.left, rr.top]));\n";
+        s += "        var q2 = L.toComp(sL.toComp([rr.left + rr.width, rr.top + rr.height]));\n";
+        s += "        l = Math.min(l, q1[0], q2[0]);\n";
+        s += "        t = Math.min(t, q1[1], q2[1]);\n";
+        s += "        rgt = Math.max(rgt, q1[0], q2[0]);\n";
+        s += "        btm = Math.max(btm, q1[1], q2[1]);\n";
+        s += "      }\n";
+        s += "      var l2=1e9,t2=1e9,r2=-1e9,b2=-1e9; var found=false;\n";
+        s += "      var gx=6, gy=6;\n";
+        s += "      for (var yi=0; yi<gy; yi++){\n";
+        s += "        var cy = t + (btm - t) * (yi/(gy-1));\n";
+        s += "        for (var xi=0; xi<gx; xi++){\n";
+        s += "          var cx = l + (rgt - l) * (xi/(gx-1));\n";
+        s += "          var rad = [Math.max(0.5,(rgt-l)/gx/2), Math.max(0.5,(btm-t)/gy/2)];\n";
+        s += "          var alpha = L.sampleImage(L.fromComp([cx, cy]), rad, true, time)[3];\n";
+        s += "          if (alpha > 0.001){\n";
+        s += "            if (!found){ l2=cx; r2=cx; t2=cy; b2=cy; found=true; }\n";
+        s += "            l2 = Math.min(l2, cx); r2 = Math.max(r2, cx); t2 = Math.min(t2, cy); b2 = Math.max(b2, cy);\n";
+        s += "          }\n";
+        s += "        }\n";
+        s += "      }\n";
+        s += "      if (found){ l=l2; t=t2; rgt=r2; btm=b2; }\n";
+        s += "    }\n";
+        s += "  }catch(e){}\n";
+        s += "  return {l:l, t:t, r:rgt, b:btm, w:Math.max(0,rgt-l), h:Math.max(0,btm-t)};\n";
+        s += "}\n";
+        return s;
+    }
+
     // mode: "parent" | "direct" | "multi"
     function buildRectSizeExpr(mode, targetNameList, includeExtents, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
@@ -210,15 +257,16 @@
         s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
         s += "var fx = shrink01(shrinkX);\n";
         s += "var fy = shrink01(shrinkY);\n";
+        s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  var p = padVals(r);\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
-            s += "  var w0 = Math.max(0, r.width  + px*2);\n";
-            s += "  var h0 = Math.max(0, r.height + py*2);\n";
+            s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
+            s += "  var h0 = Math.max(0, rd.h + py*2);\n";
             s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
             s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
             s += "  [w1,h1];\n";
@@ -229,11 +277,11 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  var p = padVals(r);\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
-            s += "  var w0 = Math.max(0, r.width  + px*2);\n";
-            s += "  var h0 = Math.max(0, r.height + py*2);\n";
+            s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
+            s += "  var h0 = Math.max(0, rd.h + py*2);\n";
             s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
             s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
             s += "  [w1,h1];\n";
@@ -247,22 +295,16 @@
                 s += "  '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
             }
             s += "];\n";
-            s += "function layerRect(L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  var p1 = L.toComp([r.left, r.top]);\n";
-            s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
-            s += "  return [p1[0], p1[1], p2[0], p2[1]];\n";
-            s += "}\n";
             s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
             s += "for (var i=0;i<names.length;i++){\n";
             s += "  var L = thisComp.layer(names[i]);\n";
             s += "  if(!L) continue;\n";
             s += "  if (!L.sourceRectAtTime) continue;\n";
-            s += "  var rc = layerRect(L);\n";
-            s += "  l = Math.min(l, rc[0]);\n";
-            s += "  t = Math.min(t, rc[1]);\n";
-            s += "  r = Math.max(r, rc[2]);\n";
-            s += "  b = Math.max(b, rc[3]);\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  l = Math.min(l, rd.l);\n";
+            s += "  t = Math.min(t, rd.t);\n";
+            s += "  r = Math.max(r, rd.r);\n";
+            s += "  b = Math.max(b, rd.b);\n";
             s += "}\n";
             s += "var baseW = Math.max(0, r - l);\n";
             s += "var baseH = Math.max(0, b - t);\n";
@@ -296,56 +338,7 @@
         s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
         s += "var fx = shrink01(shrinkX);\n";
         s += "var fy = shrink01(shrinkY);\n";
-        s += "function layerRectData(L){\n";
-        s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-        s += "  var p1 = L.toComp([r.left, r.top]);\n";
-        s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
-        s += "  var l = Math.min(p1[0], p2[0]);\n";
-        s += "  var t = Math.min(p1[1], p2[1]);\n";
-        s += "  var rgt = Math.max(p1[0], p2[0]);\n";
-        s += "  var btm = Math.max(p1[1], p2[1]);\n";
-        s += "  try{\n";
-        s += "    var src = L.source;\n";
-        s += "    if (src && src.numLayers){\n";
-        s += "      l=1e9; t=1e9; rgt=-1e9; btm=-1e9;\n";
-        s += "      for (var i=1;i<=src.numLayers;i++){\n";
-        s += "        var sL = src.layer(i);\n";
-        s += "        if (!sL || !sL.sourceRectAtTime) continue;\n";
-        s += "        var rr = sL.sourceRectAtTime(time,"+inc+");\n";
-        s += "        var q1 = sL.toComp([rr.left, rr.top]);\n";
-        s += "        var q2 = sL.toComp([rr.left + rr.width, rr.top + rr.height]);\n";
-        s += "        l = Math.min(l, q1[0], q2[0]);\n";
-        s += "        t = Math.min(t, q1[1], q2[1]);\n";
-        s += "        rgt = Math.max(rgt, q1[0], q2[0]);\n";
-        s += "        btm = Math.max(btm, q1[1], q2[1]);\n";
-        s += "      }\n";
-        s += "      if (rgt < 1e8){\n";
-        s += "        var lt = L.toComp([l,t]);\n";
-        s += "        var rb = L.toComp([rgt,btm]);\n";
-        s += "        l = Math.min(lt[0], rb[0]);\n";
-        s += "        t = Math.min(lt[1], rb[1]);\n";
-        s += "        rgt = Math.max(lt[0], rb[0]);\n";
-        s += "        btm = Math.max(lt[1], rb[1]);\n";
-        s += "      }\n";
-        s += "      var l2=1e9,t2=1e9,r2=-1e9,b2=-1e9; var found=false;\n";
-        s += "      var gx=6, gy=6;\n";
-        s += "      for (var yi=0; yi<gy; yi++){\n";
-        s += "        var cy = t + (btm - t) * (yi/(gy-1));\n";
-        s += "        for (var xi=0; xi<gx; xi++){\n";
-        s += "          var cx = l + (rgt - l) * (xi/(gx-1));\n";
-        s += "          var rad = [Math.max(0.5,(rgt-l)/gx/2), Math.max(0.5,(btm-t)/gy/2)];\n";
-        s += "          var alpha = L.sampleImage(L.fromComp([cx, cy]), rad, true, time)[3];\n";
-        s += "          if (alpha > 0.001){\n";
-        s += "            if (!found){ l2=cx; r2=cx; t2=cy; b2=cy; found=true; }\n";
-        s += "            l2 = Math.min(l2, cx); r2 = Math.max(r2, cx); t2 = Math.min(t2, cy); b2 = Math.max(b2, cy);\n";
-        s += "          }\n";
-        s += "        }\n";
-        s += "      }\n";
-        s += "      if (found){ l=l2; t=t2; rgt=r2; btm=b2; }\n";
-        s += "    }\n";
-        s += "  }catch(e){}\n";
-        s += "  return {l:l, t:t, r:rgt, b:btm, w:Math.max(0,rgt-l), h:Math.max(0,btm-t)};\n";
-        s += "}\n";
+        s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
             s += "var L = parent;\n";
@@ -465,6 +458,8 @@
         s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
         s += "var fx = shrink01(shrinkX);\n";
         s += "var fy = shrink01(shrinkY);\n";
+        s += buildLayerRectDataFunc(inc);
+        s += "var mode = '" + mode + "';\n";
         s += "if (mode === 'parent') {\n";
         s += "  var L = parent;\n";
         s += "  if (L){\n";
