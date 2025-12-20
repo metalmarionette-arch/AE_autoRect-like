@@ -1369,6 +1369,30 @@
                 }
 
                 if (created.length === 0) {
+                    // さらに最後の保険として、最初のターゲットに簡易矩形を作成
+                    try {
+                        var t0 = targets[0];
+                        var simple = comp.layers.addShape();
+                        simple.name = uniqueNameInComp(comp, "Rect_" + t0.name);
+                        simple.threeDLayer = t0.threeDLayer;
+                        var cts = simple.property("Contents");
+                        var g = cts.addProperty("ADBE Vector Group");
+                        g.name = "AutoRect";
+                        var r = g.property("Contents").addProperty("ADBE Vector Shape - Rect");
+                        r.property("Size").setValue([100,50]);
+                        r.property("Position").setValue([0,0]);
+                        ensureStrokeFill(g, {
+                            strokeOn:true, strokeWidth:4, strokeColor:[0.2,0.6,1],
+                            fillOn:false
+                        });
+                        simple.moveBefore(t0);
+                        created.push({shape:simple, target:t0});
+                    } catch(eSimple) {
+                        alert("何も作成されませんでした。最後の保険でも作成できませんでした: " + eSimple.toString());
+                    }
+                }
+
+                if (created.length === 0) {
                     alert("何も作成されませんでした。");
                 } else {
                     // 作成後は元のターゲットを再選択
