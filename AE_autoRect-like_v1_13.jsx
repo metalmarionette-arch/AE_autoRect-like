@@ -247,8 +247,8 @@
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = " + sX + ";\n";
-        s += "var shrinkY = " + sY + ";\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -328,8 +328,8 @@
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = " + sX + ";\n";
-        s += "var shrinkY = " + sY + ";\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -352,8 +352,8 @@
             s += "  var h = Math.max(0, baseH * (1 - fy));\n";
             s += "  var leftPad = rd.l - px;\n";
             s += "  var topPad  = rd.t - py;\n";
-            s += "  var cx = (shrinkX > 0.0001) ? (leftPad + baseW - w/2) : (shrinkX < -0.0001 ? (leftPad + w/2) : (leftPad + baseW/2));\n";
-            s += "  var cy = (shrinkY > 0.0001) ? (topPad + h/2) : (shrinkY < -0.0001 ? (topPad + baseH - h/2) : (topPad + baseH/2));\n";
+            s += "  var cx = leftPad + baseW/2;\n";
+            s += "  var cy = topPad + baseH/2;\n";
             s += "  var centerComp = L.toComp([cx, cy]);\n";
             s += "  fromWorld(centerComp);\n";
             s += "}else{\n";
@@ -372,8 +372,8 @@
             s += "  var h = Math.max(0, baseH * (1 - fy));\n";
             s += "  var leftPad = rd.l - px;\n";
             s += "  var topPad  = rd.t - py;\n";
-            s += "  var cx = (shrinkX > 0.0001) ? (leftPad + baseW - w/2) : (shrinkX < -0.0001 ? (leftPad + w/2) : (leftPad + baseW/2));\n";
-            s += "  var cy = (shrinkY > 0.0001) ? (topPad + h/2) : (shrinkY < -0.0001 ? (topPad + baseH - h/2) : (topPad + baseH/2));\n";
+            s += "  var cx = leftPad + baseW/2;\n";
+            s += "  var cy = topPad + baseH/2;\n";
             s += "  var centerComp = L.toComp([cx, cy]);\n";
             s += "  fromWorld(centerComp);\n";
             s += "}else{\n";
@@ -411,8 +411,8 @@
             s += "var h = Math.max(0, h0 * (1 - fy));\n";
             s += "var leftPad = l - px;\n";
             s += "var topPad  = t - py;\n";
-            s += "var cx = (shrinkX > 0.0001) ? (leftPad + w0 - w/2) : (shrinkX < -0.0001 ? (leftPad + w/2) : (leftPad + w0/2));\n";
-            s += "var cy = (shrinkY > 0.0001) ? (topPad + h/2) : (shrinkY < -0.0001 ? (topPad + h0 - h/2) : (topPad + h0/2));\n";
+            s += "var cx = leftPad + w0/2;\n";
+            s += "var cy = topPad + h0/2;\n";
             s += "fromWorld([cx, cy]);\n";
         }
         return s;
@@ -472,8 +472,8 @@
         s += "    var h = Math.max(0, baseH * (1 - fy));\n";
         s += "    var leftPad = rd.l - px;\n";
         s += "    var topPad  = rd.t - py;\n";
-        s += "    var leftEdge = (shrinkX > 0.0001) ? (leftPad + baseW - w) : leftPad;\n";
-        s += "    var topEdge  = (shrinkY < -0.0001) ? (topPad + baseH - h) : topPad;\n";
+        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
+        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
         s += "    var cornerComp = L.toComp(cornerLayer);\n";
         s += "    fromWorld(cornerComp);\n";
@@ -492,8 +492,8 @@
         s += "    var h = Math.max(0, baseH * (1 - fy));\n";
         s += "    var leftPad = rd.l - px;\n";
         s += "    var topPad  = rd.t - py;\n";
-        s += "    var leftEdge = (shrinkX > 0.0001) ? (leftPad + baseW - w) : leftPad;\n";
-        s += "    var topEdge  = (shrinkY < -0.0001) ? (topPad + baseH - h) : topPad;\n";
+        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
+        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
         s += "    var cornerComp = L.toComp(cornerLayer);\n";
         s += "    fromWorld(cornerComp);\n";
@@ -528,8 +528,8 @@
         s += "  var h = Math.max(0, h0 * (1 - fy));\n";
         s += "  var leftPad = l - px;\n";
         s += "  var topPad  = t - py;\n";
-        s += "  var leftEdge = (shrinkX > 0.0001) ? (leftPad + w0 - w) : leftPad;\n";
-        s += "  var topEdge  = (shrinkY < -0.0001) ? (topPad + h0 - h) : topPad;\n";
+        s += "  var leftEdge = leftPad + (w0 - w)/2;\n";
+        s += "  var topEdge  = topPad + (h0 - h)/2;\n";
         s += "  var corner = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
         s += "  fromWorld(corner);\n";
         s += "}\n";
