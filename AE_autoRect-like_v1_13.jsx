@@ -593,7 +593,7 @@
         return {stroke:stroke, fill:fill};
     }
 
-    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct) {
+    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
             var sld = fx.addProperty("ADBE Slider Control");
@@ -604,6 +604,8 @@
         addSlider("余白 X", padX);
         addSlider("余白 Y", padY);
         addSlider("余白%モード", usePct ? 1 : 0);
+        addSlider("縮小 左右%", shrinkX || 0);
+        addSlider("縮小 上下%", shrinkY || 0);
         addSlider("線幅 調整", 0);
         addSlider("ブラケット線幅 調整", 0);
         addSlider("角丸", corner);
