@@ -354,7 +354,8 @@
             s += "  var topPad  = rd.t - py;\n";
             s += "  var cx = leftPad + baseW/2;\n";
             s += "  var cy = topPad + baseH/2;\n";
-            s += "  fromWorld([cx, cy]);\n";
+            s += "  var centerComp = L.toComp([cx, cy]);\n";
+            s += "  fromWorld(centerComp);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -373,7 +374,8 @@
             s += "  var topPad  = rd.t - py;\n";
             s += "  var cx = leftPad + baseW/2;\n";
             s += "  var cy = topPad + baseH/2;\n";
-            s += "  fromWorld([cx, cy]);\n";
+            s += "  var centerComp = L.toComp([cx, cy]);\n";
+            s += "  fromWorld(centerComp);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -473,7 +475,8 @@
         s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
         s += "    var topEdge  = topPad + (baseH - h)/2;\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromWorld(cornerLayer);\n";
+        s += "    var cornerComp = L.toComp(cornerLayer);\n";
+        s += "    fromWorld(cornerComp);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -492,7 +495,8 @@
         s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
         s += "    var topEdge  = topPad + (baseH - h)/2;\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromWorld(cornerLayer);\n";
+        s += "    var cornerComp = L.toComp(cornerLayer);\n";
+        s += "    fromWorld(cornerComp);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
