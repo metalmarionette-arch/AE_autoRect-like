@@ -354,8 +354,7 @@
             s += "  var topPad  = rd.t - py;\n";
             s += "  var cx = leftPad + baseW/2;\n";
             s += "  var cy = topPad + baseH/2;\n";
-            s += "  var centerComp = L.toComp([cx, cy]);\n";
-            s += "  fromWorld(centerComp);\n";
+            s += "  fromWorld([cx, cy]);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -374,8 +373,7 @@
             s += "  var topPad  = rd.t - py;\n";
             s += "  var cx = leftPad + baseW/2;\n";
             s += "  var cy = topPad + baseH/2;\n";
-            s += "  var centerComp = L.toComp([cx, cy]);\n";
-            s += "  fromWorld(centerComp);\n";
+            s += "  fromWorld([cx, cy]);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -448,8 +446,8 @@
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
         s += "var usePct = pickSlider('余白%モード', 0);\n";
-        s += "var shrinkX = " + sX + ";\n";
-        s += "var shrinkY = " + sY + ";\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
         s += "function padVals(r){\n";
         s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
@@ -475,8 +473,7 @@
         s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
         s += "    var topEdge  = topPad + (baseH - h)/2;\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    var cornerComp = L.toComp(cornerLayer);\n";
-        s += "    fromWorld(cornerComp);\n";
+        s += "    fromWorld(cornerLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -495,8 +492,7 @@
         s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
         s += "    var topEdge  = topPad + (baseH - h)/2;\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    var cornerComp = L.toComp(cornerLayer);\n";
-        s += "    fromWorld(cornerComp);\n";
+        s += "    fromWorld(cornerLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
