@@ -437,6 +437,26 @@
         return s;
     }
 
+    function buildSideLinePathExpr(sideLabel, orientation) {
+        var s = "";
+        s += "function pick(name, def){ var ef = effect(name); if(!ef) return def; var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }\n";
+        s += "var enabled = pick('サイドライン', 0);\n";
+        s += "var sideEnabled = pick('サイドライン " + sideLabel + "', 0);\n";
+        s += "var path;\n";
+        s += "if (enabled < 0.5 || sideEnabled < 0.5){\n";
+        s += "  path = createPath([[0,0],[0,0]], [[0,0],[0,0]], [[0,0],[0,0]], false);\n";
+        s += "} else {\n";
+        s += "  var len = pick('サイドライン長', 0);\n";
+        if (orientation === "h") {
+            s += "  path = createPath([[-len/2,0],[len/2,0]], [[0,0],[0,0]], [[0,0],[0,0]], false);\n";
+        } else {
+            s += "  path = createPath([[0,-len/2],[0,len/2]], [[0,0],[0,0]], [[0,0],[0,0]], false);\n";
+        }
+        s += "}\n";
+        s += "path;\n";
+        return s;
+    }
+
     function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
         var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
@@ -528,6 +548,101 @@
         s += "  var topEdge  = topPad + (h0 - h)/2;\n";
         s += "  var corner = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
         s += "  fromWorld(corner);\n";
+        s += "}\n";
+        return s;
+    }
+
+    function buildSideLinePosExpr(mode, targetNameList, includeExtents, sideX, sideY, shrinkXVal, shrinkYVal) {
+        var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "function padVals(r){\n";
+        s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
+        s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
+        s += "  return [px, py];\n";
+        s += "}\n";
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
+        s += buildLayerRectDataFunc(inc);
+        s += "var mode = '" + mode + "';\n";
+        s += "if (mode === 'parent') {\n";
+        s += "  var L = parent;\n";
+        s += "  if (L){\n";
+        s += "    var rd = layerRectData(L);\n";
+        s += "    var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "    var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "    var w = Math.max(0, baseW * (1 - fx));\n";
+        s += "    var h = Math.max(0, baseH * (1 - fy));\n";
+        s += "    var leftPad = rd.l - px;\n";
+        s += "    var topPad  = rd.t - py;\n";
+        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
+        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
+        s += "    var sideLayer = [leftEdge + w*(" + sideX + "), topEdge + h*(" + sideY + ")];\n";
+        s += "    fromWorld(sideLayer);\n";
+        s += "  } else {\n";
+        s += "    [0,0];\n";
+        s += "  }\n";
+        s += "} else if (mode === 'direct') {\n";
+        s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\\\'") +"');\n";
+        s += "  if (L){\n";
+        s += "    var rd = layerRectData(L);\n";
+        s += "    var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "    var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "    var w = Math.max(0, baseW * (1 - fx));\n";
+        s += "    var h = Math.max(0, baseH * (1 - fy));\n";
+        s += "    var leftPad = rd.l - px;\n";
+        s += "    var topPad  = rd.t - py;\n";
+        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
+        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
+        s += "    var sideLayer = [leftEdge + w*(" + sideX + "), topEdge + h*(" + sideY + ")];\n";
+        s += "    fromWorld(sideLayer);\n";
+        s += "  } else {\n";
+        s += "    [0,0];\n";
+        s += "  }\n";
+        s += "} else {\n";
+        s += "  var names = [\n";
+        for (var i=0;i<targetNameList.length;i++){
+            s += "    '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
+        }
+        s += "  ];\n";
+        s += "  function rectOf(L){ var rd = layerRectData(L); return [rd.l, rd.t, rd.r, rd.b]; }\n";
+        s += "  var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+        s += "  for (var i=0;i<names.length;i++){\n";
+        s += "    var L=thisComp.layer(names[i]);\n";
+        s += "    if(!L) continue;\n";
+        s += "    if(!L.sourceRectAtTime) continue;\n";
+        s += "    var rc=rectOf(L);\n";
+        s += "    l=Math.min(l,rc[0]);\n";
+        s += "    t=Math.min(t,rc[1]);\n";
+        s += "    r=Math.max(r,rc[2]);\n";
+        s += "    b=Math.max(b,rc[3]);\n";
+        s += "  }\n";
+        s += "  var baseW = Math.max(0, r - l);\n";
+        s += "  var baseH = Math.max(0, b - t);\n";
+        s += "  var p = padVals({width:baseW, height:baseH});\n";
+        s += "  var px = p[0], py = p[1];\n";
+        s += "  var w0 = Math.max(0, baseW + px*2);\n";
+        s += "  var h0 = Math.max(0, baseH + py*2);\n";
+        s += "  var w = Math.max(0, w0 * (1 - fx));\n";
+        s += "  var h = Math.max(0, h0 * (1 - fy));\n";
+        s += "  var leftPad = l - px;\n";
+        s += "  var topPad  = t - py;\n";
+        s += "  var leftEdge = leftPad + (w0 - w)/2;\n";
+        s += "  var topEdge  = topPad + (h0 - h)/2;\n";
+        s += "  var side = [leftEdge + w*(" + sideX + "), topEdge + h*(" + sideY + ")];\n";
+        s += "  fromWorld(side);\n";
         s += "}\n";
         return s;
     }
@@ -627,6 +742,25 @@
         addSlider("ブラケット 右下", corners.rb ? 1 : 0);
     }
 
+    function addSideLineEffects(layer, opt) {
+        opt = opt || {};
+        var fx = layer.property("ADBE Effect Parade");
+        function addSlider(name, val){
+            var sld = fx.addProperty("ADBE Slider Control");
+            sld.name = name;
+            sld.property("ADBE Slider Control-0001").setValue(val);
+            return sld;
+        }
+        addSlider("サイドライン", opt.sideLineOn ? 1 : 0);
+        addSlider("サイドライン長", opt.sideLineLength || 0);
+        addSlider("サイドライン線幅", opt.sideLineStrokeWidth || 0);
+        addSlider("サイドライン 上", opt.sideLineSides ? (opt.sideLineSides.top ? 1 : 0) : 0);
+        addSlider("サイドライン 下", opt.sideLineSides ? (opt.sideLineSides.bottom ? 1 : 0) : 0);
+        addSlider("サイドライン 左", opt.sideLineSides ? (opt.sideLineSides.left ? 1 : 0) : 0);
+        addSlider("サイドライン 右", opt.sideLineSides ? (opt.sideLineSides.right ? 1 : 0) : 0);
+        addSlider("サイドライン線幅 調整", 0);
+    }
+
     function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var fx = layer.property("ADBE Effect Parade");
 
@@ -712,6 +846,48 @@
         try { stroke.moveTo(rootContents.numProperties); } catch(e) {}
     }
 
+    function addSideLines(shapeLayer, mode, targetNames, option, includeExtents) {
+        option = option || {};
+        var contents = shapeLayer.property("Contents");
+        var root = contents.addProperty("ADBE Vector Group");
+        root.name = "SideLines";
+        var rootContents = root.property("Contents");
+
+        var sides = [
+            {label:"上", x:0.5, y:0, orientation:"h"},
+            {label:"下", x:0.5, y:1, orientation:"h"},
+            {label:"左", x:0, y:0.5, orientation:"v"},
+            {label:"右", x:1, y:0.5, orientation:"v"}
+        ];
+
+        for (var i=0;i<sides.length;i++){
+            var s = sides[i];
+            var gp = rootContents.addProperty("ADBE Vector Group");
+            gp.name = "SideLine " + s.label;
+            var pathShape = gp.property("Contents").addProperty("ADBE Vector Shape - Group");
+            var pathProp = pathShape.property("Path");
+            applyExpression(pathProp, buildSideLinePathExpr(s.label, s.orientation));
+            var posProp = gp.property("Transform").property("Position");
+            applyExpression(posProp, buildSideLinePosExpr(mode, targetNames, includeExtents, s.x, s.y, option.shrinkX, option.shrinkY));
+        }
+
+        var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
+        var lineStrokeW = option.sideLineStrokeWidth || option.strokeWidth || 4;
+        var widthProp = stroke.property("ADBE Vector Stroke Width");
+        if (widthProp.canSetExpression) {
+            widthProp.expression =
+                "var baseCtrl = effect('サイドライン線幅');\n" +
+                "var base = baseCtrl ? baseCtrl('スライダー') : " + lineStrokeW + ";\n" +
+                "var adj = effect('サイドライン線幅 調整') ? effect('サイドライン線幅 調整')('スライダー') : 0;\n" +
+                "Math.max(0, base + adj);";
+        } else {
+            widthProp.setValue(lineStrokeW);
+        }
+        var lineColor = option.sideLineStrokeColor || option.strokeColor;
+        if (lineColor) stroke.property("ADBE Vector Stroke Color").setValue(lineColor);
+        try { stroke.moveTo(rootContents.numProperties); } catch(e) {}
+    }
+
     function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
@@ -732,6 +908,7 @@
 
             addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
             addBracketEffects(shape, option);
+            addSideLineEffects(shape, option);
 
             var names = [];
             for (var i=0;i<targets.length;i++) names.push(targets[i].name);
@@ -742,6 +919,7 @@
 
             ensureStrokeFill(gp, option);
             addCornerBrackets(shape, "multi", names, option, option.includeExtents);
+            addSideLines(shape, "multi", names, option, option.includeExtents);
 
             if (option.parentTo) {
                 shape.parent = topTgt;
@@ -786,6 +964,7 @@
 
                 addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
                 addBracketEffects(shape, option);
+                addSideLineEffects(shape, option);
 
                 var useParentMode = option.parentTo;
                 var modeName = useParentMode ? "parent" : "direct";
@@ -798,6 +977,7 @@
 
                 ensureStrokeFill(gp, option);
                 addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
+                addSideLines(shape, modeName, [tgt.name], option, option.includeExtents);
 
                 if (useParentMode) {
                     shape.parent = tgt;
@@ -1187,6 +1367,37 @@
             loadSetting("bracketStrokeB", 1.0)
         ]);
 
+        var sidePanel = opt.add("panel", undefined, "サイドライン");
+        sidePanel.orientation = "column";
+        sidePanel.alignChildren = "left";
+        var sideTop = sidePanel.add("group");
+        var ckSideLine = sideTop.add("checkbox", undefined, "サイドライン");
+        ckSideLine.value = !!loadSetting("sideLineOn", false);
+        sideTop.add("statictext", undefined, "長さ");
+        var etSideLineLen = sideTop.add("edittext", undefined, String(loadSetting("sideLineLen", 24)));
+        etSideLineLen.characters = 5;
+
+        var sideRow = sidePanel.add("group");
+        sideRow.add("statictext", undefined, "方向:");
+        var ckSideTop = sideRow.add("checkbox", undefined, "上");
+        var ckSideBottom = sideRow.add("checkbox", undefined, "下");
+        var ckSideLeft = sideRow.add("checkbox", undefined, "左");
+        var ckSideRight = sideRow.add("checkbox", undefined, "右");
+        ckSideTop.value = !!loadSetting("sideLineTop", true);
+        ckSideBottom.value = !!loadSetting("sideLineBottom", true);
+        ckSideLeft.value = !!loadSetting("sideLineLeft", true);
+        ckSideRight.value = !!loadSetting("sideLineRight", true);
+
+        var sideStrokeRow = sidePanel.add("group");
+        sideStrokeRow.add("statictext", undefined, "線幅");
+        var etSideLineStroke = sideStrokeRow.add("edittext", undefined, String(loadSetting("sideLineStrokeW", 4)));
+        etSideLineStroke.characters = 4;
+        var sideColorSwatch = createColorSwatch(sideStrokeRow, "線色", [
+            loadSetting("sideLineStrokeR", 0.2),
+            loadSetting("sideLineStrokeG", 0.6),
+            loadSetting("sideLineStrokeB", 1.0)
+        ]);
+
         // マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
         pm.orientation   = "row";
@@ -1247,6 +1458,15 @@
             var bracketStyle = ddBracketStyle.selection ? ddBracketStyle.selection.index : 0;
             var bracketCorners = {lt: ckBrLT.value, rt: ckBrRT.value, lb: ckBrLB.value, rb: ckBrRB.value};
             var bracketStrokeW = Math.max(0, num(etBracketStroke.text, 4));
+            var sideLineOn = ckSideLine.value;
+            var sideLineLen = num(etSideLineLen.text, 24);
+            var sideLineSides = {
+                top: ckSideTop.value,
+                bottom: ckSideBottom.value,
+                left: ckSideLeft.value,
+                right: ckSideRight.value
+            };
+            var sideLineStrokeW = Math.max(0, num(etSideLineStroke.text, 4));
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
             var shrinkX = 0;
@@ -1270,6 +1490,7 @@
             var strokeC = strokeSwatch.getColor();
             var fillC   = fillSwatch.getColor();
             var brStrokeC = brColorSwatch.getColor();
+            var sideStrokeC = sideColorSwatch.getColor();
             saveSetting("strokeR", strokeC[0]);
             saveSetting("strokeG", strokeC[1]);
             saveSetting("strokeB", strokeC[2]);
@@ -1279,6 +1500,16 @@
             saveSetting("bracketStrokeR", brStrokeC[0]);
             saveSetting("bracketStrokeG", brStrokeC[1]);
             saveSetting("bracketStrokeB", brStrokeC[2]);
+            saveSetting("sideLineOn", sideLineOn);
+            saveSetting("sideLineLen", sideLineLen);
+            saveSetting("sideLineTop", ckSideTop.value);
+            saveSetting("sideLineBottom", ckSideBottom.value);
+            saveSetting("sideLineLeft", ckSideLeft.value);
+            saveSetting("sideLineRight", ckSideRight.value);
+            saveSetting("sideLineStrokeW", sideLineStrokeW);
+            saveSetting("sideLineStrokeR", sideStrokeC[0]);
+            saveSetting("sideLineStrokeG", sideStrokeC[1]);
+            saveSetting("sideLineStrokeB", sideStrokeC[2]);
             saveSetting("insertAbove", ckInsertAbove.value);
             saveSetting("parentTo", ckParent.value);
             saveSetting("makeAdj", ckAdj.value);
@@ -1305,6 +1536,11 @@
                 bracketCorners: bracketCorners,
                 bracketStrokeWidth: bracketStrokeW,
                 bracketStrokeColor: brStrokeC,
+                sideLineOn:    sideLineOn,
+                sideLineLength: sideLineLen,
+                sideLineSides: sideLineSides,
+                sideLineStrokeWidth: sideLineStrokeW,
+                sideLineStrokeColor: sideStrokeC,
                 strokeOn:      ckStroke.value,
                 strokeWidth:   strokeW,
                 strokeColor:   strokeC,
