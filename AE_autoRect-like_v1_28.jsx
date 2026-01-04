@@ -254,6 +254,7 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -268,15 +269,21 @@
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
             s += "  var h0 = Math.max(0, rd.h + py*2);\n";
+            s += "  var leftPad = rd.l - px;\n";
+            s += "  var topPad = rd.t - py;\n";
             s += "  var ex = shrinkEdges(w0, shrinkX);\n";
             s += "  var ey = shrinkEdges(h0, -shrinkY);\n";
-            s += "  var w1 = Math.max(0, ex[1] - ex[0]);\n";
-            s += "  var h1 = Math.max(0, ey[1] - ey[0]);\n";
+            s += "  var leftEdge = leftPad + ex[0];\n";
+            s += "  var rightEdge = leftPad + ex[1];\n";
+            s += "  var topEdge = topPad + ey[0];\n";
+            s += "  var bottomEdge = topPad + ey[1];\n";
+            s += "  var w1 = Math.max(0, rightEdge - leftEdge);\n";
+            s += "  var h1 = Math.max(0, bottomEdge - topEdge);\n";
             s += "  [w1, h1];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
@@ -285,15 +292,21 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
             s += "  var h0 = Math.max(0, rd.h + py*2);\n";
+            s += "  var leftPad = rd.l - px;\n";
+            s += "  var topPad = rd.t - py;\n";
             s += "  var ex = shrinkEdges(w0, shrinkX);\n";
             s += "  var ey = shrinkEdges(h0, -shrinkY);\n";
-            s += "  var w1 = Math.max(0, ex[1] - ex[0]);\n";
-            s += "  var h1 = Math.max(0, ey[1] - ey[0]);\n";
+            s += "  var leftEdge = leftPad + ex[0];\n";
+            s += "  var rightEdge = leftPad + ex[1];\n";
+            s += "  var topEdge = topPad + ey[0];\n";
+            s += "  var bottomEdge = topPad + ey[1];\n";
+            s += "  var w1 = Math.max(0, rightEdge - leftEdge);\n";
+            s += "  var h1 = Math.max(0, bottomEdge - topEdge);\n";
             s += "  [w1, h1];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
@@ -349,6 +362,7 @@
         s += "  return [px, py];\n";
         s += "}\n";
         s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -363,7 +377,7 @@
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, rd.w + px*2);\n";
@@ -378,7 +392,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  toLayer([cx, cy]);\n";
+            s += "  [cx, cy];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -386,7 +400,7 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, rd.w + px*2);\n";
@@ -401,7 +415,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  toLayer([cx, cy]);\n";
+            s += "  [cx, cy];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -503,6 +517,7 @@
         s += "    var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "    return [px, py];\n";
         s += "  }\n";
+        s += "  function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "  function shrinkEdges(base, v){\n";
         s += "    var f = clamp(v*0.01, -1, 1);\n";
         s += "    var amt = Math.abs(f);\n";
@@ -517,7 +532,7 @@
         s += "  if (mode === 'parent') {\n";
         s += "    var L = parent;\n";
         s += "    if (L){\n";
-        s += "      var rd = layerRectData(L);\n";
+        s += "      var rd = localRect(L);\n";
         s += "      var p = padVals({width:rd.w, height:rd.h});\n";
         s += "      var px = p[0], py = p[1];\n";
         s += "      var baseW = Math.max(0, rd.w + px*2);\n";
@@ -531,7 +546,7 @@
         s += "  } else if (mode === 'direct') {\n";
         s += "    var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
         s += "    if (L){\n";
-        s += "      var rd = layerRectData(L);\n";
+        s += "      var rd = localRect(L);\n";
         s += "      var p = padVals({width:rd.w, height:rd.h});\n";
         s += "      var px = p[0], py = p[1];\n";
         s += "      var baseW = Math.max(0, rd.w + px*2);\n";
@@ -600,6 +615,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  return [px, py];\n";
         s += "}\n";
         s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -614,7 +630,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "if (mode === 'parent') {\n";
         s += "  var L = parent;\n";
         s += "  if (L){\n";
-        s += "    var rd = layerRectData(L);\n";
+        s += "    var rd = localRect(L);\n";
         s += "    var p = padVals({width:rd.w, height:rd.h});\n";
         s += "    var px = p[0], py = p[1];\n";
         s += "    var baseW = Math.max(0, rd.w + px*2);\n";
@@ -630,14 +646,14 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    toLayer(cornerLayer);\n";
+        s += "    cornerLayer;\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
         s += "} else if (mode === 'direct') {\n";
         s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
         s += "  if (L){\n";
-        s += "    var rd = layerRectData(L);\n";
+        s += "    var rd = localRect(L);\n";
         s += "    var p = padVals({width:rd.w, height:rd.h});\n";
         s += "    var px = p[0], py = p[1];\n";
         s += "    var baseW = Math.max(0, rd.w + px*2);\n";
@@ -653,7 +669,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    toLayer(cornerLayer);\n";
+        s += "    cornerLayer;\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -715,6 +731,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  return [px, py];\n";
         s += "}\n";
         s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -729,7 +746,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "if (mode === 'parent') {\n";
         s += "  var L = parent;\n";
         s += "  if (L){\n";
-        s += "    var rd = layerRectData(L);\n";
+        s += "    var rd = localRect(L);\n";
         s += "    var p = padVals({width:rd.w, height:rd.h});\n";
         s += "    var px = p[0], py = p[1];\n";
         s += "    var baseW = Math.max(0, rd.w + px*2);\n";
@@ -747,14 +764,14 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
-        s += "    toLayer(sideLayer);\n";
+        s += "    sideLayer;\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
         s += "} else if (mode === 'direct') {\n";
         s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
         s += "  if (L){\n";
-        s += "    var rd = layerRectData(L);\n";
+        s += "    var rd = localRect(L);\n";
         s += "    var p = padVals({width:rd.w, height:rd.h});\n";
         s += "    var px = p[0], py = p[1];\n";
         s += "    var baseW = Math.max(0, rd.w + px*2);\n";
@@ -772,7 +789,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
-        s += "    toLayer(sideLayer);\n";
+        s += "    sideLayer;\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
