@@ -348,6 +348,7 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
+        s += "function toLayer(pt){ return thisLayer.threeDLayer ? fromWorld(pt) : fromComp(pt); }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -377,7 +378,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  fromWorld([cx, cy]);\n";
+            s += "  toLayer([cx, cy]);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -400,7 +401,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  fromWorld([cx, cy]);\n";
+            s += "  toLayer([cx, cy]);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -442,7 +443,7 @@
             s += "var bottomEdge = topPad + ey[1];\n";
             s += "var cx = (leftEdge + rightEdge) / 2;\n";
             s += "var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "fromWorld([cx, cy]);\n";
+            s += "toLayer([cx, cy]);\n";
         }
         return s;
     }
@@ -598,6 +599,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
+        s += "function toLayer(pt){ return thisLayer.threeDLayer ? fromWorld(pt) : fromComp(pt); }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -628,7 +630,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromWorld(cornerLayer);\n";
+        s += "    toLayer(cornerLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -651,7 +653,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromWorld(cornerLayer);\n";
+        s += "    toLayer(cornerLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -690,7 +692,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "  var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "  var corner = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "  fromWorld(corner);\n";
+        s += "  toLayer(corner);\n";
         s += "}\n";
         return s;
     }
@@ -712,6 +714,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
+        s += "function toLayer(pt){ return thisLayer.threeDLayer ? fromWorld(pt) : fromComp(pt); }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -744,7 +747,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
-        s += "    fromWorld(sideLayer);\n";
+        s += "    toLayer(sideLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -769,7 +772,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
-        s += "    fromWorld(sideLayer);\n";
+        s += "    toLayer(sideLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -810,7 +813,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "             (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "             (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "             [rightEdge, topEdge];\n";
-        s += "  fromWorld(side);\n";
+        s += "  toLayer(side);\n";
         s += "}\n";
         return s;
     }
