@@ -348,7 +348,7 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return thisLayer.threeDLayer ? fromWorld(pt) : fromComp(pt); }\n";
+        s += "function toLayer(pt){ return fromComp(pt); }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -599,7 +599,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return thisLayer.threeDLayer ? fromWorld(pt) : fromComp(pt); }\n";
+        s += "function toLayer(pt){ return fromComp(pt); }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
@@ -714,7 +714,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return thisLayer.threeDLayer ? fromWorld(pt) : fromComp(pt); }\n";
+        s += "function toLayer(pt){ return fromComp(pt); }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
         s += "  var f = clamp(v*0.01, -1, 1);\n";
