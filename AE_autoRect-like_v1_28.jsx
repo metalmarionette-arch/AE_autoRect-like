@@ -364,6 +364,7 @@
         s += "function toLayer(pt){ return fromComp(pt); }\n";
         s += "function toLayerFrom(L, pt){ return fromComp(L.toComp(pt)); }\n";
         s += "function toLayerFrom(L, pt){ return fromComp(L.toComp(pt)); }\n";
+        s += "function toLayerFrom(L, pt){ return fromComp(L.toComp(pt)); }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
