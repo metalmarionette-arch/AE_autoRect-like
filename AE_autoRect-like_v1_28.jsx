@@ -762,10 +762,10 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    var sideLabel = '" + sideLabel + "';\n";
-        s += "    var sideLayer = (sideLabel === '上') ? [leftEdge, topEdge] :\n";
-        s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
-        s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
+        s += "    var sideKey = '" + sideLabel + "';\n";
+        s += "    var sideLayer = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
+        s += "                    (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
+        s += "                    (sideKey === 'left') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
         s += "    toLayerFrom(L, sideLayer);\n";
         s += "  } else {\n";
@@ -787,10 +787,10 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    var sideLabel = '" + sideLabel + "';\n";
-        s += "    var sideLayer = (sideLabel === '上') ? [leftEdge, topEdge] :\n";
-        s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
-        s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
+        s += "    var sideKey = '" + sideLabel + "';\n";
+        s += "    var sideLayer = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
+        s += "                    (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
+        s += "                    (sideKey === 'left') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
         s += "    toLayerFrom(L, sideLayer);\n";
         s += "  } else {\n";
@@ -828,10 +828,10 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var rightEdge = leftPad + ex[1];\n";
         s += "  var topEdge = topPad + ey[0];\n";
         s += "  var bottomEdge = topPad + ey[1];\n";
-        s += "  var sideLabel = '" + sideLabel + "';\n";
-        s += "  var side = (sideLabel === '上') ? [leftEdge, topEdge] :\n";
-        s += "             (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
-        s += "             (sideLabel === '左') ? [leftEdge, topEdge] :\n";
+        s += "  var sideKey = '" + sideLabel + "';\n";
+        s += "  var side = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
+        s += "             (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
+        s += "             (sideKey === 'left') ? [leftEdge, topEdge] :\n";
         s += "             [rightEdge, topEdge];\n";
         s += "  toLayer(side);\n";
         s += "}\n";
@@ -1059,10 +1059,10 @@ function ensureFixedBaseEffects(layer, baseSize, basePos) {
         }
 
         var sides = [
-            {label:"上", orientation:"h"},
-            {label:"下", orientation:"h"},
-            {label:"左", orientation:"v"},
-            {label:"右", orientation:"v"}
+            {label:"上", key:"top",    orientation:"h"},
+            {label:"下", key:"bottom", orientation:"h"},
+            {label:"左", key:"left",   orientation:"v"},
+            {label:"右", key:"right",  orientation:"v"}
         ];
 
         for (var i=0;i<sides.length;i++){
@@ -1073,7 +1073,7 @@ function ensureFixedBaseEffects(layer, baseSize, basePos) {
             var pathProp = pathShape.property("Path");
             applyExpression(pathProp, buildSideLinePathExpr(mode, targetNames, includeExtents, s.label, s.orientation, option.shrinkX, option.shrinkY));
             var posProp = gp.property("Transform").property("Position");
-            applyExpression(posProp, buildSideLinePosExpr(mode, targetNames, includeExtents, s.label, option.shrinkX, option.shrinkY));
+            applyExpression(posProp, buildSideLinePosExpr(mode, targetNames, includeExtents, s.key, option.shrinkX, option.shrinkY));
         }
 
         var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
