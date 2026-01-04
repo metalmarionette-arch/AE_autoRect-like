@@ -362,6 +362,7 @@
         s += "  return [px, py];\n";
         s += "}\n";
         s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function toLayerFrom(L, pt){ return fromComp(L.toComp(pt)); }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -392,7 +393,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  [cx, cy];\n";
+            s += "  toLayerFrom(L, [cx, cy]);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -415,7 +416,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  [cx, cy];\n";
+            s += "  toLayerFrom(L, [cx, cy]);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -646,7 +647,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    cornerLayer;\n";
+        s += "    toLayerFrom(L, cornerLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -669,7 +670,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    cornerLayer;\n";
+        s += "    toLayerFrom(L, cornerLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -764,7 +765,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
-        s += "    sideLayer;\n";
+        s += "    toLayerFrom(L, sideLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -789,7 +790,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "                    (sideLabel === '下') ? [leftEdge, bottomEdge] :\n";
         s += "                    (sideLabel === '左') ? [leftEdge, topEdge] :\n";
         s += "                    [rightEdge, topEdge];\n";
-        s += "    sideLayer;\n";
+        s += "    toLayerFrom(L, sideLayer);\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
