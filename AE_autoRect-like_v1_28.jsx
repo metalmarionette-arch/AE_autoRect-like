@@ -254,22 +254,37 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
-        s += "var fx = shrink01(shrinkX);\n";
-        s += "var fy = shrink01(shrinkY);\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
+        s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "function shrinkEdges(base, v){\n";
+        s += "  var f = clamp(v*0.01, -1, 1);\n";
+        s += "  var amt = Math.abs(f);\n";
+        s += "  var start = 0, end = base;\n";
+        s += "  if (f > 0){ start = base * amt; }\n";
+        s += "  else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "  return [start, end];\n";
+        s += "}\n";
         s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
             s += "  var h0 = Math.max(0, rd.h + py*2);\n";
-            s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
-            s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
-            s += "  [w1,h1];\n";
+            s += "  var leftPad = rd.l - px;\n";
+            s += "  var topPad = rd.t - py;\n";
+            s += "  var ex = shrinkEdges(w0, shrinkX);\n";
+            s += "  var ey = shrinkEdges(h0, -shrinkY);\n";
+            s += "  var leftEdge = leftPad + ex[0];\n";
+            s += "  var rightEdge = leftPad + ex[1];\n";
+            s += "  var topEdge = topPad + ey[0];\n";
+            s += "  var bottomEdge = topPad + ey[1];\n";
+            s += "  var w1 = Math.max(0, rightEdge - leftEdge);\n";
+            s += "  var h1 = Math.max(0, bottomEdge - topEdge);\n";
+            s += "  [w1, h1];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -277,14 +292,22 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
             s += "  var h0 = Math.max(0, rd.h + py*2);\n";
-            s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
-            s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
-            s += "  [w1,h1];\n";
+            s += "  var leftPad = rd.l - px;\n";
+            s += "  var topPad = rd.t - py;\n";
+            s += "  var ex = shrinkEdges(w0, shrinkX);\n";
+            s += "  var ey = shrinkEdges(h0, -shrinkY);\n";
+            s += "  var leftEdge = leftPad + ex[0];\n";
+            s += "  var rightEdge = leftPad + ex[1];\n";
+            s += "  var topEdge = topPad + ey[0];\n";
+            s += "  var bottomEdge = topPad + ey[1];\n";
+            s += "  var w1 = Math.max(0, rightEdge - leftEdge);\n";
+            s += "  var h1 = Math.max(0, bottomEdge - topEdge);\n";
+            s += "  [w1, h1];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -312,12 +335,15 @@
             s += "var px = p[0], py = p[1];\n";
             s += "var w0 = Math.max(0, baseW + px*2);\n";
             s += "var h0 = Math.max(0, baseH + py*2);\n";
-            s += "var w1 = Math.max(0, w0 * (1 - fx));\n";
-            s += "var h1 = Math.max(0, h0 * (1 - fy));\n";
+            s += "var ex = shrinkEdges(w0, shrinkX);\n";
+            s += "var ey = shrinkEdges(h0, -shrinkY);\n";
+            s += "var w1 = Math.max(0, ex[1] - ex[0]);\n";
+            s += "var h1 = Math.max(0, ey[1] - ey[0]);\n";
             s += "[w1, h1];\n";
         }
         return s;
     }
+
 
     function buildRectPosExpr(mode, targetNameList, includeExtents, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
@@ -335,26 +361,38 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
-        s += "var fx = shrink01(shrinkX);\n";
-        s += "var fy = shrink01(shrinkY);\n";
+        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
+        s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "function shrinkEdges(base, v){\n";
+        s += "  var f = clamp(v*0.01, -1, 1);\n";
+        s += "  var amt = Math.abs(f);\n";
+        s += "  var start = 0, end = base;\n";
+        s += "  if (f > 0){ start = base * amt; }\n";
+        s += "  else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "  return [start, end];\n";
+        s += "}\n";
         s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, rd.w + px*2);\n";
             s += "  var baseH = Math.max(0, rd.h + py*2);\n";
-            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
-            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
             s += "  var leftPad = rd.l - px;\n";
             s += "  var topPad  = rd.t - py;\n";
-            s += "  var cx = leftPad + baseW/2;\n";
-            s += "  var cy = topPad + baseH/2;\n";
-            s += "  fromWorld([cx, cy]);\n";
+            s += "  var ex = shrinkEdges(baseW, shrinkX);\n";
+            s += "  var ey = shrinkEdges(baseH, -shrinkY);\n";
+            s += "  var leftEdge = leftPad + ex[0];\n";
+            s += "  var rightEdge = leftPad + ex[1];\n";
+            s += "  var topEdge = topPad + ey[0];\n";
+            s += "  var bottomEdge = topPad + ey[1];\n";
+            s += "  var cx = (leftEdge + rightEdge) / 2;\n";
+            s += "  var cy = (topEdge + bottomEdge) / 2;\n";
+            s += "  fromComp(L.toComp([cx, cy]));\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -362,18 +400,22 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var rd = layerRectData(L);\n";
+            s += "  var rd = localRect(L);\n";
             s += "  var p = padVals({width:rd.w, height:rd.h});\n";
             s += "  var px = p[0], py = p[1];\n";
             s += "  var baseW = Math.max(0, rd.w + px*2);\n";
             s += "  var baseH = Math.max(0, rd.h + py*2);\n";
-            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
-            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
             s += "  var leftPad = rd.l - px;\n";
             s += "  var topPad  = rd.t - py;\n";
-            s += "  var cx = leftPad + baseW/2;\n";
-            s += "  var cy = topPad + baseH/2;\n";
-            s += "  fromWorld([cx, cy]);\n";
+            s += "  var ex = shrinkEdges(baseW, shrinkX);\n";
+            s += "  var ey = shrinkEdges(baseH, -shrinkY);\n";
+            s += "  var leftEdge = leftPad + ex[0];\n";
+            s += "  var rightEdge = leftPad + ex[1];\n";
+            s += "  var topEdge = topPad + ey[0];\n";
+            s += "  var bottomEdge = topPad + ey[1];\n";
+            s += "  var cx = (leftEdge + rightEdge) / 2;\n";
+            s += "  var cy = (topEdge + bottomEdge) / 2;\n";
+            s += "  fromComp(L.toComp([cx, cy]));\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -405,16 +447,21 @@
             s += "var px = p[0], py = p[1];\n";
             s += "var w0 = Math.max(0, baseW + px*2);\n";
             s += "var h0 = Math.max(0, baseH + py*2);\n";
-            s += "var w = Math.max(0, w0 * (1 - fx));\n";
-            s += "var h = Math.max(0, h0 * (1 - fy));\n";
             s += "var leftPad = l - px;\n";
             s += "var topPad  = t - py;\n";
-            s += "var cx = leftPad + w0/2;\n";
-            s += "var cy = topPad + h0/2;\n";
-            s += "fromWorld([cx, cy]);\n";
+            s += "var ex = shrinkEdges(w0, shrinkX);\n";
+            s += "var ey = shrinkEdges(h0, -shrinkY);\n";
+            s += "var leftEdge = leftPad + ex[0];\n";
+            s += "var rightEdge = leftPad + ex[1];\n";
+            s += "var topEdge = topPad + ey[0];\n";
+            s += "var bottomEdge = topPad + ey[1];\n";
+            s += "var cx = (leftEdge + rightEdge) / 2;\n";
+            s += "var cy = (topEdge + bottomEdge) / 2;\n";
+            s += "toLayer([cx, cy]);\n";
         }
         return s;
     }
+
 
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
         var s = "";
@@ -437,7 +484,121 @@
         return s;
     }
 
-    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, shrinkXVal, shrinkYVal) {
+    function buildSideLinePathExpr(mode, targetNameList, includeExtents, sideLabel, orientation, shrinkXVal, shrinkYVal) {
+        var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
+        var s = "";
+        s += "function pick(name, def){ var ef = effect(name); if(!ef) return def; var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }\n";
+        s += "var enabled = pick('サイドライン', 0);\n";
+        s += "var sideEnabled = pick('サイドライン " + sideLabel + "', 0);\n";
+        s += "var path;\n";
+        s += "if (enabled < 0.5 || sideEnabled < 0.5){\n";
+        s += "  path = createPath([[0,0],[0,0]], [[0,0],[0,0]], [[0,0],[0,0]], false);\n";
+        s += "} else {\n";
+        s += "  var shrink = pick('サイドライン " + sideLabel + " 縮小%', 0);\n";
+        s += "  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "  function spanFrom(base, v){\n";
+        s += "    var f = clamp(v*0.01, -1, 1);\n";
+        s += "    var amt = Math.abs(f);\n";
+        s += "    var start = 0, end = base;\n";
+        s += "    if (f > 0){ start = base * amt; }\n";
+        s += "    else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "    return [start, end];\n";
+        s += "  }\n";
+        s += "  function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
+        s += "  var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "  var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "  var usePct = pickSlider('余白%モード', 0);\n";
+        s += "  var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "  var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "  function padVals(r){\n";
+        s += "    var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
+        s += "    var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
+        s += "    return [px, py];\n";
+        s += "  }\n";
+        s += "  function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
+        s += "  function shrinkEdges(base, v){\n";
+        s += "    var f = clamp(v*0.01, -1, 1);\n";
+        s += "    var amt = Math.abs(f);\n";
+        s += "    var start = 0, end = base;\n";
+        s += "    if (f > 0){ start = base * amt; }\n";
+        s += "    else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "    return [start, end];\n";
+        s += "  }\n";
+        s += buildLayerRectDataFunc(inc);
+        s += "  var baseLen = 0;\n";
+        s += "  var mode = '" + mode + "';\n";
+        s += "  if (mode === 'parent') {\n";
+        s += "    var L = parent;\n";
+        s += "    if (L){\n";
+        s += "      var rd = localRect(L);\n";
+        s += "      var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "      var px = p[0], py = p[1];\n";
+        s += "      var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "      var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "      var ex = shrinkEdges(baseW, shrinkX);\n";
+        s += "      var ey = shrinkEdges(baseH, -shrinkY);\n";
+        s += "      var w = Math.max(0, ex[1] - ex[0]);\n";
+        s += "      var h = Math.max(0, ey[1] - ey[0]);\n";
+        s += "      baseLen = " + (orientation === "h" ? "w" : "h") + ";\n";
+        s += "    }\n";
+        s += "  } else if (mode === 'direct') {\n";
+        s += "    var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
+        s += "    if (L){\n";
+        s += "      var rd = localRect(L);\n";
+        s += "      var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "      var px = p[0], py = p[1];\n";
+        s += "      var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "      var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "      var ex = shrinkEdges(baseW, shrinkX);\n";
+        s += "      var ey = shrinkEdges(baseH, -shrinkY);\n";
+        s += "      var w = Math.max(0, ex[1] - ex[0]);\n";
+        s += "      var h = Math.max(0, ey[1] - ey[0]);\n";
+        s += "      baseLen = " + (orientation === "h" ? "w" : "h") + ";\n";
+        s += "    }\n";
+        s += "  } else {\n";
+        s += "    var names = [\n";
+        for (var i=0;i<targetNameList.length;i++){
+            s += "      '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
+        }
+        s += "    ];\n";
+        s += "    var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+        s += "    for (var i=0;i<names.length;i++){\n";
+        s += "      var L = thisComp.layer(names[i]);\n";
+        s += "      if(!L) continue;\n";
+        s += "      if (!L.sourceRectAtTime) continue;\n";
+        s += "      var rd = layerRectData(L);\n";
+        s += "      l = Math.min(l, rd.l);\n";
+        s += "      t = Math.min(t, rd.t);\n";
+        s += "      r = Math.max(r, rd.r);\n";
+        s += "      b = Math.max(b, rd.b);\n";
+        s += "    }\n";
+        s += "    var baseW = Math.max(0, r - l);\n";
+        s += "    var baseH = Math.max(0, b - t);\n";
+        s += "    var p = padVals({width:baseW, height:baseH});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var w0 = Math.max(0, baseW + px*2);\n";
+        s += "    var h0 = Math.max(0, baseH + py*2);\n";
+        s += "    var ex = shrinkEdges(w0, shrinkX);\n";
+        s += "    var ey = shrinkEdges(h0, -shrinkY);\n";
+        s += "    var w = Math.max(0, ex[1] - ex[0]);\n";
+        s += "    var h = Math.max(0, ey[1] - ey[0]);\n";
+        s += "    baseLen = " + (orientation === "h" ? "w" : "h") + ";\n";
+        s += "  }\n";
+        s += "  var shrinkVal = " + (orientation === "h" ? "shrink" : "-shrink") + ";\n";
+        s += "  var span = spanFrom(baseLen, shrinkVal);\n";
+        if (orientation === "h") {
+            s += "  path = createPath([[span[0],0],[span[1],0]], [[0,0],[0,0]], [[0,0],[0,0]], false);\n";
+        } else {
+            s += "  path = createPath([[0,span[0]],[0,span[1]]], [[0,0],[0,0]], [[0,0],[0,0]], false);\n";
+        }
+        s += "}\n";
+        s += "path;\n";
+        return s;
+    }
+
+function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
         var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
         var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
@@ -453,46 +614,62 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
-        s += "var fx = shrink01(shrinkX);\n";
-        s += "var fy = shrink01(shrinkY);\n";
+        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
+        s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "function shrinkEdges(base, v){\n";
+        s += "  var f = clamp(v*0.01, -1, 1);\n";
+        s += "  var amt = Math.abs(f);\n";
+        s += "  var start = 0, end = base;\n";
+        s += "  if (f > 0){ start = base * amt; }\n";
+        s += "  else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "  return [start, end];\n";
+        s += "}\n";
         s += buildLayerRectDataFunc(inc);
         s += "var mode = '" + mode + "';\n";
         s += "if (mode === 'parent') {\n";
         s += "  var L = parent;\n";
         s += "  if (L){\n";
-        s += "    var rd = layerRectData(L);\n";
+        s += "    var rd = localRect(L);\n";
         s += "    var p = padVals({width:rd.w, height:rd.h});\n";
         s += "    var px = p[0], py = p[1];\n";
         s += "    var baseW = Math.max(0, rd.w + px*2);\n";
         s += "    var baseH = Math.max(0, rd.h + py*2);\n";
-        s += "    var w = Math.max(0, baseW * (1 - fx));\n";
-        s += "    var h = Math.max(0, baseH * (1 - fy));\n";
         s += "    var leftPad = rd.l - px;\n";
         s += "    var topPad  = rd.t - py;\n";
-        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
-        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
+        s += "    var ex = shrinkEdges(baseW, shrinkX);\n";
+        s += "    var ey = shrinkEdges(baseH, -shrinkY);\n";
+        s += "    var leftEdge = leftPad + ex[0];\n";
+        s += "    var rightEdge = leftPad + ex[1];\n";
+        s += "    var topEdge = topPad + ey[0];\n";
+        s += "    var bottomEdge = topPad + ey[1];\n";
+        s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
+        s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromWorld(cornerLayer);\n";
+        s += "    fromComp(L.toComp(cornerLayer));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
         s += "} else if (mode === 'direct') {\n";
-        s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\\\'") +"');\n";
+        s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
         s += "  if (L){\n";
-        s += "    var rd = layerRectData(L);\n";
+        s += "    var rd = localRect(L);\n";
         s += "    var p = padVals({width:rd.w, height:rd.h});\n";
         s += "    var px = p[0], py = p[1];\n";
         s += "    var baseW = Math.max(0, rd.w + px*2);\n";
         s += "    var baseH = Math.max(0, rd.h + py*2);\n";
-        s += "    var w = Math.max(0, baseW * (1 - fx));\n";
-        s += "    var h = Math.max(0, baseH * (1 - fy));\n";
         s += "    var leftPad = rd.l - px;\n";
         s += "    var topPad  = rd.t - py;\n";
-        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
-        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
+        s += "    var ex = shrinkEdges(baseW, shrinkX);\n";
+        s += "    var ey = shrinkEdges(baseH, -shrinkY);\n";
+        s += "    var leftEdge = leftPad + ex[0];\n";
+        s += "    var rightEdge = leftPad + ex[1];\n";
+        s += "    var topEdge = topPad + ey[0];\n";
+        s += "    var bottomEdge = topPad + ey[1];\n";
+        s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
+        s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromWorld(cornerLayer);\n";
+        s += "    fromComp(L.toComp(cornerLayer));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -520,18 +697,143 @@
         s += "  var px = p[0], py = p[1];\n";
         s += "  var w0 = Math.max(0, baseW + px*2);\n";
         s += "  var h0 = Math.max(0, baseH + py*2);\n";
-        s += "  var w = Math.max(0, w0 * (1 - fx));\n";
-        s += "  var h = Math.max(0, h0 * (1 - fy));\n";
         s += "  var leftPad = l - px;\n";
         s += "  var topPad  = t - py;\n";
-        s += "  var leftEdge = leftPad + (w0 - w)/2;\n";
-        s += "  var topEdge  = topPad + (h0 - h)/2;\n";
+        s += "  var ex = shrinkEdges(w0, shrinkX);\n";
+        s += "  var ey = shrinkEdges(h0, -shrinkY);\n";
+        s += "  var leftEdge = leftPad + ex[0];\n";
+        s += "  var rightEdge = leftPad + ex[1];\n";
+        s += "  var topEdge = topPad + ey[0];\n";
+        s += "  var bottomEdge = topPad + ey[1];\n";
+        s += "  var w = Math.max(0, rightEdge - leftEdge);\n";
+        s += "  var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "  var corner = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "  fromWorld(corner);\n";
+        s += "  toLayer(corner);\n";
         s += "}\n";
         return s;
     }
 
+
+    function buildSideLinePosExpr(mode, targetNameList, includeExtents, sideLabel, shrinkXVal, shrinkYVal) {
+        var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "function padVals(r){\n";
+        s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
+        s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
+        s += "  return [px, py];\n";
+        s += "}\n";
+        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
+        s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "function shrinkEdges(base, v){\n";
+        s += "  var f = clamp(v*0.01, -1, 1);\n";
+        s += "  var amt = Math.abs(f);\n";
+        s += "  var start = 0, end = base;\n";
+        s += "  if (f > 0){ start = base * amt; }\n";
+        s += "  else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "  return [start, end];\n";
+        s += "}\n";
+        s += buildLayerRectDataFunc(inc);
+        s += "var mode = '" + mode + "';\n";
+        s += "if (mode === 'parent') {\n";
+        s += "  var L = parent;\n";
+        s += "  if (L){\n";
+        s += "    var rd = localRect(L);\n";
+        s += "    var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "    var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "    var leftPad = rd.l - px;\n";
+        s += "    var topPad  = rd.t - py;\n";
+        s += "    var ex = shrinkEdges(baseW, shrinkX);\n";
+        s += "    var ey = shrinkEdges(baseH, -shrinkY);\n";
+        s += "    var leftEdge = leftPad + ex[0];\n";
+        s += "    var rightEdge = leftPad + ex[1];\n";
+        s += "    var topEdge = topPad + ey[0];\n";
+        s += "    var bottomEdge = topPad + ey[1];\n";
+        s += "    var sideKey = '" + sideLabel + "';\n";
+        s += "    var sideLayer = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
+        s += "                    (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
+        s += "                    (sideKey === 'left') ? [leftEdge, topEdge] :\n";
+        s += "                    [rightEdge, topEdge];\n";
+        s += "    fromComp(L.toComp(sideLayer));\n";
+        s += "  } else {\n";
+        s += "    [0,0];\n";
+        s += "  }\n";
+        s += "} else if (mode === 'direct') {\n";
+        s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
+        s += "  if (L){\n";
+        s += "    var rd = localRect(L);\n";
+        s += "    var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "    var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "    var leftPad = rd.l - px;\n";
+        s += "    var topPad  = rd.t - py;\n";
+        s += "    var ex = shrinkEdges(baseW, shrinkX);\n";
+        s += "    var ey = shrinkEdges(baseH, -shrinkY);\n";
+        s += "    var leftEdge = leftPad + ex[0];\n";
+        s += "    var rightEdge = leftPad + ex[1];\n";
+        s += "    var topEdge = topPad + ey[0];\n";
+        s += "    var bottomEdge = topPad + ey[1];\n";
+        s += "    var sideKey = '" + sideLabel + "';\n";
+        s += "    var sideLayer = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
+        s += "                    (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
+        s += "                    (sideKey === 'left') ? [leftEdge, topEdge] :\n";
+        s += "                    [rightEdge, topEdge];\n";
+        s += "    fromComp(L.toComp(sideLayer));\n";
+        s += "  } else {\n";
+        s += "    [0,0];\n";
+        s += "  }\n";
+        s += "} else {\n";
+        s += "  var names = [\n";
+        for (var i=0;i<targetNameList.length;i++){
+            s += "    '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
+        }
+        s += "  ];\n";
+        s += "  function rectOf(L){ var rd = layerRectData(L); return [rd.l, rd.t, rd.r, rd.b]; }\n";
+        s += "  var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+        s += "  for (var i=0;i<names.length;i++){\n";
+        s += "    var L=thisComp.layer(names[i]);\n";
+        s += "    if(!L) continue;\n";
+        s += "    if(!L.sourceRectAtTime) continue;\n";
+        s += "    var rc=rectOf(L);\n";
+        s += "    l=Math.min(l,rc[0]);\n";
+        s += "    t=Math.min(t,rc[1]);\n";
+        s += "    r=Math.max(r,rc[2]);\n";
+        s += "    b=Math.max(b,rc[3]);\n";
+        s += "  }\n";
+        s += "  var baseW = Math.max(0, r - l);\n";
+        s += "  var baseH = Math.max(0, b - t);\n";
+        s += "  var p = padVals({width:baseW, height:baseH});\n";
+        s += "  var px = p[0], py = p[1];\n";
+        s += "  var w0 = Math.max(0, baseW + px*2);\n";
+        s += "  var h0 = Math.max(0, baseH + py*2);\n";
+        s += "  var leftPad = l - px;\n";
+        s += "  var topPad  = t - py;\n";
+        s += "  var ex = shrinkEdges(w0, shrinkX);\n";
+        s += "  var ey = shrinkEdges(h0, -shrinkY);\n";
+        s += "  var leftEdge = leftPad + ex[0];\n";
+        s += "  var rightEdge = leftPad + ex[1];\n";
+        s += "  var topEdge = topPad + ey[0];\n";
+        s += "  var bottomEdge = topPad + ey[1];\n";
+        s += "  var sideKey = '" + sideLabel + "';\n";
+        s += "  var side = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
+        s += "             (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
+        s += "             (sideKey === 'left') ? [leftEdge, topEdge] :\n";
+        s += "             [rightEdge, topEdge];\n";
+        s += "  toLayer(side);\n";
+        s += "}\n";
+        return s;
+    }
 
 
     function buildRoundnessExpr() {
@@ -627,7 +929,29 @@
         addSlider("ブラケット 右下", corners.rb ? 1 : 0);
     }
 
-    function ensureFixedBaseEffects(layer, baseSize, basePos) {
+    function addSideLineEffects(layer, opt) {
+        opt = opt || {};
+        var fx = layer.property("ADBE Effect Parade");
+        function addSlider(name, val){
+            var sld = fx.addProperty("ADBE Slider Control");
+            sld.name = name;
+            sld.property("ADBE Slider Control-0001").setValue(val);
+            return sld;
+        }
+        addSlider("サイドライン", opt.sideLineOn ? 1 : 0);
+        addSlider("サイドライン線幅", opt.sideLineStrokeWidth || 0);
+        addSlider("サイドライン 上", opt.sideLineSides ? (opt.sideLineSides.top ? 1 : 0) : 0);
+        addSlider("サイドライン 下", opt.sideLineSides ? (opt.sideLineSides.bottom ? 1 : 0) : 0);
+        addSlider("サイドライン 左", opt.sideLineSides ? (opt.sideLineSides.left ? 1 : 0) : 0);
+        addSlider("サイドライン 右", opt.sideLineSides ? (opt.sideLineSides.right ? 1 : 0) : 0);
+        addSlider("サイドライン 上 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.top || 0) : 0);
+        addSlider("サイドライン 下 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.bottom || 0) : 0);
+        addSlider("サイドライン 左 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.left || 0) : 0);
+        addSlider("サイドライン 右 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.right || 0) : 0);
+        addSlider("サイドライン線幅 調整", 0);
+    }
+
+function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var fx = layer.property("ADBE Effect Parade");
 
         function ensureSlider(name, def){
@@ -675,6 +999,12 @@
         var root = contents.addProperty("ADBE Vector Group");
         root.name = "CornerBrackets";
         var rootContents = root.property("Contents");
+        var rootOpacity = root.property("Transform").property("Opacity");
+        if (rootOpacity && rootOpacity.canSetExpression) {
+            rootOpacity.expression =
+                "var e = effect('コーナーブラケット');\n" +
+                "e ? e('スライダー') * 100 : 0;";
+        }
 
         var corners = [
             {label:"左上", cx:0, cy:0, dx:1,  dy:1},
@@ -712,7 +1042,55 @@
         try { stroke.moveTo(rootContents.numProperties); } catch(e) {}
     }
 
-    function createAutoRectForTargets(comp, targets, option) {
+    function addSideLines(shapeLayer, mode, targetNames, option, includeExtents) {
+        option = option || {};
+        var contents = shapeLayer.property("Contents");
+        var root = contents.addProperty("ADBE Vector Group");
+        root.name = "SideLines";
+        var rootContents = root.property("Contents");
+        var rootOpacity = root.property("Transform").property("Opacity");
+        if (rootOpacity && rootOpacity.canSetExpression) {
+            rootOpacity.expression =
+                "var e = effect('サイドライン');\n" +
+                "e ? e('スライダー') * 100 : 0;";
+        }
+
+        var sides = [
+            {label:"上", key:"top",    orientation:"h"},
+            {label:"下", key:"bottom", orientation:"h"},
+            {label:"左", key:"left",   orientation:"v"},
+            {label:"右", key:"right",  orientation:"v"}
+        ];
+
+        for (var i=0;i<sides.length;i++){
+            var s = sides[i];
+            var gp = rootContents.addProperty("ADBE Vector Group");
+            gp.name = "SideLine " + s.label;
+            var pathShape = gp.property("Contents").addProperty("ADBE Vector Shape - Group");
+            var pathProp = pathShape.property("Path");
+            applyExpression(pathProp, buildSideLinePathExpr(mode, targetNames, includeExtents, s.label, s.orientation, option.shrinkX, option.shrinkY));
+            var posProp = gp.property("Transform").property("Position");
+            applyExpression(posProp, buildSideLinePosExpr(mode, targetNames, includeExtents, s.key, option.shrinkX, option.shrinkY));
+        }
+
+        var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
+        var lineStrokeW = option.sideLineStrokeWidth || option.strokeWidth || 4;
+        var widthProp = stroke.property("ADBE Vector Stroke Width");
+        if (widthProp.canSetExpression) {
+            widthProp.expression =
+                "var baseCtrl = effect('サイドライン線幅');\n" +
+                "var base = baseCtrl ? baseCtrl('スライダー') : " + lineStrokeW + ";\n" +
+                "var adj = effect('サイドライン線幅 調整') ? effect('サイドライン線幅 調整')('スライダー') : 0;\n" +
+                "Math.max(0, base + adj);";
+        } else {
+            widthProp.setValue(lineStrokeW);
+        }
+        var lineColor = option.sideLineStrokeColor || option.strokeColor;
+        if (lineColor) stroke.property("ADBE Vector Stroke Color").setValue(lineColor);
+        try { stroke.moveTo(rootContents.numProperties); } catch(e) {}
+    }
+
+function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
 
@@ -732,6 +1110,7 @@
 
             addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
             addBracketEffects(shape, option);
+            addSideLineEffects(shape, option);
 
             var names = [];
             for (var i=0;i<targets.length;i++) names.push(targets[i].name);
@@ -742,6 +1121,7 @@
 
             ensureStrokeFill(gp, option);
             addCornerBrackets(shape, "multi", names, option, option.includeExtents);
+            addSideLines(shape, "multi", names, option, option.includeExtents);
 
             if (option.parentTo) {
                 shape.parent = topTgt;
@@ -786,6 +1166,7 @@
 
                 addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
                 addBracketEffects(shape, option);
+                addSideLineEffects(shape, option);
 
                 var useParentMode = option.parentTo;
                 var modeName = useParentMode ? "parent" : "direct";
@@ -798,6 +1179,7 @@
 
                 ensureStrokeFill(gp, option);
                 addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
+                addSideLines(shape, modeName, [tgt.name], option, option.includeExtents);
 
                 if (useParentMode) {
                     shape.parent = tgt;
@@ -1114,12 +1496,18 @@
         row1.add("statictext", undefined, "余白 X");
         var etPadX = row1.add("edittext", undefined, String(loadSetting("padX", 16)));
         etPadX.characters = 6;
+        var slPadX = row1.add("slider", undefined, num(etPadX.text, 16), 0, 300);
+        slPadX.preferredSize = [120, 18];
         row1.add("statictext", undefined, "余白 Y");
         var etPadY = row1.add("edittext", undefined, String(loadSetting("padY", 8)));
         etPadY.characters = 6;
+        var slPadY = row1.add("slider", undefined, num(etPadY.text, 8), 0, 300);
+        slPadY.preferredSize = [120, 18];
         row1.add("statictext", undefined, "角丸");
         var etCorner = row1.add("edittext", undefined, String(loadSetting("corner", 0)));
         etCorner.characters = 6;
+        var slCorner = row1.add("slider", undefined, num(etCorner.text, 0), 0, 100);
+        slCorner.preferredSize = [120, 18];
 
         var rowUnit = opt.add("group");
         rowUnit.add("statictext", undefined, "余白単位");
@@ -1137,6 +1525,8 @@
         row3.add("statictext", undefined, "線幅");
         var etStrokeW = row3.add("edittext", undefined, String(loadSetting("strokeW", 4)));
         etStrokeW.characters = 4;
+        var slStrokeW = row3.add("slider", undefined, num(etStrokeW.text, 4), 0, 50);
+        slStrokeW.preferredSize = [120, 18];
 
         var row4 = opt.add("group");
         var ckFill = row4.add("checkbox", undefined, "塗り（Fill）");
@@ -1187,7 +1577,35 @@
             loadSetting("bracketStrokeB", 1.0)
         ]);
 
-        // マルチ選択モード
+                var sidePanel = opt.add("panel", undefined, "サイドライン");
+        sidePanel.orientation = "column";
+        sidePanel.alignChildren = "left";
+        var sideTop = sidePanel.add("group");
+        var ckSideLine = sideTop.add("checkbox", undefined, "サイドライン");
+        ckSideLine.value = !!loadSetting("sideLineOn", false);
+
+        var sideRow = sidePanel.add("group");
+        sideRow.add("statictext", undefined, "方向:");
+        var ckSideTop = sideRow.add("checkbox", undefined, "上");
+        var ckSideBottom = sideRow.add("checkbox", undefined, "下");
+        var ckSideLeft = sideRow.add("checkbox", undefined, "左");
+        var ckSideRight = sideRow.add("checkbox", undefined, "右");
+        ckSideTop.value = !!loadSetting("sideLineTop", true);
+        ckSideBottom.value = !!loadSetting("sideLineBottom", true);
+        ckSideLeft.value = !!loadSetting("sideLineLeft", true);
+        ckSideRight.value = !!loadSetting("sideLineRight", true);
+
+        var sideStrokeRow = sidePanel.add("group");
+        sideStrokeRow.add("statictext", undefined, "線幅");
+        var etSideLineStroke = sideStrokeRow.add("edittext", undefined, String(loadSetting("sideLineStrokeW", 4)));
+        etSideLineStroke.characters = 4;
+        var sideColorSwatch = createColorSwatch(sideStrokeRow, "線色", [
+            loadSetting("sideLineStrokeR", 0.2),
+            loadSetting("sideLineStrokeG", 0.6),
+            loadSetting("sideLineStrokeB", 1.0)
+        ]);
+
+// マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
         pm.orientation   = "row";
         pm.alignChildren = "left";
@@ -1237,6 +1655,25 @@
         pal.onShow = refreshInfo;
         pal.addEventListener("mousemove", refreshInfo);
 
+        function bindSlider(editText, slider, minVal, maxVal) {
+            function syncFromEdit() {
+                var v = clamp(num(editText.text, minVal), minVal, maxVal);
+                slider.value = v;
+                editText.text = String(v);
+            }
+            function syncFromSlider() {
+                editText.text = String(Math.round(slider.value * 10) / 10);
+            }
+            editText.onChange = syncFromEdit;
+            slider.onChanging = syncFromSlider;
+            syncFromEdit();
+        }
+
+        bindSlider(etPadX, slPadX, 0, 300);
+        bindSlider(etPadY, slPadY, 0, 300);
+        bindSlider(etCorner, slCorner, 0, 100);
+        bindSlider(etStrokeW, slStrokeW, 0, 50);
+
         function gatherOptions(){
             var padX   = num(etPadX.text, 16);
             var padY   = num(etPadY.text, 8);
@@ -1247,6 +1684,20 @@
             var bracketStyle = ddBracketStyle.selection ? ddBracketStyle.selection.index : 0;
             var bracketCorners = {lt: ckBrLT.value, rt: ckBrRT.value, lb: ckBrLB.value, rb: ckBrRB.value};
             var bracketStrokeW = Math.max(0, num(etBracketStroke.text, 4));
+            var sideLineOn = ckSideLine.value;
+            var sideLineSides = {
+                top: ckSideTop.value,
+                bottom: ckSideBottom.value,
+                left: ckSideLeft.value,
+                right: ckSideRight.value
+            };
+            var sideLineShrink = {
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0
+            };
+            var sideLineStrokeW = Math.max(0, num(etSideLineStroke.text, 4));
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
             var shrinkX = 0;
@@ -1270,6 +1721,7 @@
             var strokeC = strokeSwatch.getColor();
             var fillC   = fillSwatch.getColor();
             var brStrokeC = brColorSwatch.getColor();
+            var sideStrokeC = sideColorSwatch.getColor();
             saveSetting("strokeR", strokeC[0]);
             saveSetting("strokeG", strokeC[1]);
             saveSetting("strokeB", strokeC[2]);
@@ -1279,6 +1731,15 @@
             saveSetting("bracketStrokeR", brStrokeC[0]);
             saveSetting("bracketStrokeG", brStrokeC[1]);
             saveSetting("bracketStrokeB", brStrokeC[2]);
+            saveSetting("sideLineOn", sideLineOn);
+            saveSetting("sideLineTop", ckSideTop.value);
+            saveSetting("sideLineBottom", ckSideBottom.value);
+            saveSetting("sideLineLeft", ckSideLeft.value);
+            saveSetting("sideLineRight", ckSideRight.value);
+            saveSetting("sideLineStrokeW", sideLineStrokeW);
+            saveSetting("sideLineStrokeR", sideStrokeC[0]);
+            saveSetting("sideLineStrokeG", sideStrokeC[1]);
+            saveSetting("sideLineStrokeB", sideStrokeC[2]);
             saveSetting("insertAbove", ckInsertAbove.value);
             saveSetting("parentTo", ckParent.value);
             saveSetting("makeAdj", ckAdj.value);
@@ -1305,6 +1766,11 @@
                 bracketCorners: bracketCorners,
                 bracketStrokeWidth: bracketStrokeW,
                 bracketStrokeColor: brStrokeC,
+                sideLineOn:    sideLineOn,
+                sideLineSides: sideLineSides,
+                sideLineShrink: sideLineShrink,
+                sideLineStrokeWidth: sideLineStrokeW,
+                sideLineStrokeColor: sideStrokeC,
                 strokeOn:      ckStroke.value,
                 strokeWidth:   strokeW,
                 strokeColor:   strokeC,
