@@ -979,6 +979,12 @@ function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var root = contents.addProperty("ADBE Vector Group");
         root.name = "CornerBrackets";
         var rootContents = root.property("Contents");
+        var rootOpacity = root.property("Transform").property("Opacity");
+        if (rootOpacity && rootOpacity.canSetExpression) {
+            rootOpacity.expression =
+                "var e = effect('コーナーブラケット');\n" +
+                "e ? e('スライダー') * 100 : 0;";
+        }
 
         var corners = [
             {label:"左上", cx:0, cy:0, dx:1,  dy:1},
@@ -1022,6 +1028,12 @@ function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var root = contents.addProperty("ADBE Vector Group");
         root.name = "SideLines";
         var rootContents = root.property("Contents");
+        var rootOpacity = root.property("Transform").property("Opacity");
+        if (rootOpacity && rootOpacity.canSetExpression) {
+            rootOpacity.expression =
+                "var e = effect('サイドライン');\n" +
+                "e ? e('スライダー') * 100 : 0;";
+        }
 
         var sides = [
             {label:"上", orientation:"h"},
@@ -1464,12 +1476,18 @@ function createAutoRectForTargets(comp, targets, option) {
         row1.add("statictext", undefined, "余白 X");
         var etPadX = row1.add("edittext", undefined, String(loadSetting("padX", 16)));
         etPadX.characters = 6;
+        var slPadX = row1.add("slider", undefined, num(etPadX.text, 16), 0, 300);
+        slPadX.preferredSize = [120, 18];
         row1.add("statictext", undefined, "余白 Y");
         var etPadY = row1.add("edittext", undefined, String(loadSetting("padY", 8)));
         etPadY.characters = 6;
+        var slPadY = row1.add("slider", undefined, num(etPadY.text, 8), 0, 300);
+        slPadY.preferredSize = [120, 18];
         row1.add("statictext", undefined, "角丸");
         var etCorner = row1.add("edittext", undefined, String(loadSetting("corner", 0)));
         etCorner.characters = 6;
+        var slCorner = row1.add("slider", undefined, num(etCorner.text, 0), 0, 100);
+        slCorner.preferredSize = [120, 18];
 
         var rowUnit = opt.add("group");
         rowUnit.add("statictext", undefined, "余白単位");
@@ -1487,6 +1505,8 @@ function createAutoRectForTargets(comp, targets, option) {
         row3.add("statictext", undefined, "線幅");
         var etStrokeW = row3.add("edittext", undefined, String(loadSetting("strokeW", 4)));
         etStrokeW.characters = 4;
+        var slStrokeW = row3.add("slider", undefined, num(etStrokeW.text, 4), 0, 50);
+        slStrokeW.preferredSize = [120, 18];
 
         var row4 = opt.add("group");
         var ckFill = row4.add("checkbox", undefined, "塗り（Fill）");
@@ -1555,22 +1575,6 @@ function createAutoRectForTargets(comp, targets, option) {
         ckSideLeft.value = !!loadSetting("sideLineLeft", true);
         ckSideRight.value = !!loadSetting("sideLineRight", true);
 
-        var sideShrinkRow1 = sidePanel.add("group");
-        sideShrinkRow1.add("statictext", undefined, "上 縮小%");
-        var etSideShrinkTop = sideShrinkRow1.add("edittext", undefined, String(loadSetting("sideLineShrinkTop", 0)));
-        etSideShrinkTop.characters = 4;
-        sideShrinkRow1.add("statictext", undefined, "下 縮小%");
-        var etSideShrinkBottom = sideShrinkRow1.add("edittext", undefined, String(loadSetting("sideLineShrinkBottom", 0)));
-        etSideShrinkBottom.characters = 4;
-
-        var sideShrinkRow2 = sidePanel.add("group");
-        sideShrinkRow2.add("statictext", undefined, "左 縮小%");
-        var etSideShrinkLeft = sideShrinkRow2.add("edittext", undefined, String(loadSetting("sideLineShrinkLeft", 0)));
-        etSideShrinkLeft.characters = 4;
-        sideShrinkRow2.add("statictext", undefined, "右 縮小%");
-        var etSideShrinkRight = sideShrinkRow2.add("edittext", undefined, String(loadSetting("sideLineShrinkRight", 0)));
-        etSideShrinkRight.characters = 4;
-
         var sideStrokeRow = sidePanel.add("group");
         sideStrokeRow.add("statictext", undefined, "線幅");
         var etSideLineStroke = sideStrokeRow.add("edittext", undefined, String(loadSetting("sideLineStrokeW", 4)));
@@ -1631,6 +1635,25 @@ function createAutoRectForTargets(comp, targets, option) {
         pal.onShow = refreshInfo;
         pal.addEventListener("mousemove", refreshInfo);
 
+        function bindSlider(editText, slider, minVal, maxVal) {
+            function syncFromEdit() {
+                var v = clamp(num(editText.text, minVal), minVal, maxVal);
+                slider.value = v;
+                editText.text = String(v);
+            }
+            function syncFromSlider() {
+                editText.text = String(Math.round(slider.value * 10) / 10);
+            }
+            editText.onChange = syncFromEdit;
+            slider.onChanging = syncFromSlider;
+            syncFromEdit();
+        }
+
+        bindSlider(etPadX, slPadX, 0, 300);
+        bindSlider(etPadY, slPadY, 0, 300);
+        bindSlider(etCorner, slCorner, 0, 100);
+        bindSlider(etStrokeW, slStrokeW, 0, 50);
+
         function gatherOptions(){
             var padX   = num(etPadX.text, 16);
             var padY   = num(etPadY.text, 8);
@@ -1649,10 +1672,10 @@ function createAutoRectForTargets(comp, targets, option) {
                 right: ckSideRight.value
             };
             var sideLineShrink = {
-                top: num(etSideShrinkTop.text, 0),
-                bottom: num(etSideShrinkBottom.text, 0),
-                left: num(etSideShrinkLeft.text, 0),
-                right: num(etSideShrinkRight.text, 0)
+                top: 0,
+                bottom: 0,
+                left: 0,
+                right: 0
             };
             var sideLineStrokeW = Math.max(0, num(etSideLineStroke.text, 4));
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
@@ -1693,10 +1716,6 @@ function createAutoRectForTargets(comp, targets, option) {
             saveSetting("sideLineBottom", ckSideBottom.value);
             saveSetting("sideLineLeft", ckSideLeft.value);
             saveSetting("sideLineRight", ckSideRight.value);
-            saveSetting("sideLineShrinkTop", sideLineShrink.top);
-            saveSetting("sideLineShrinkBottom", sideLineShrink.bottom);
-            saveSetting("sideLineShrinkLeft", sideLineShrink.left);
-            saveSetting("sideLineShrinkRight", sideLineShrink.right);
             saveSetting("sideLineStrokeW", sideLineStrokeW);
             saveSetting("sideLineStrokeR", sideStrokeC[0]);
             saveSetting("sideLineStrokeG", sideStrokeC[1]);
