@@ -719,6 +719,11 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
         var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
         var s  = "";
+        var sidePoint = (function(label){
+            if (label === "bottom") return "[leftEdge, bottomEdge]";
+            if (label === "right") return "[rightEdge, topEdge]";
+            return "[leftEdge, topEdge]";
+        })(sideLabel);
         s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\n";
         s += "var pxSlider = pickSlider('余白 X', 0);\n";
         s += "var pySlider = pickSlider('余白 Y', 0);\n";
@@ -759,12 +764,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    var sideKey = '" + sideLabel + "';\n";
-        s += "    var sideLayer = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
-        s += "                    (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
-        s += "                    (sideKey === 'left') ? [leftEdge, topEdge] :\n";
-        s += "                    [rightEdge, topEdge];\n";
-        s += "    fromComp(L.toComp(sideLayer));\n";
+        s += "    fromComp(L.toComp(" + sidePoint + "));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -784,12 +784,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    var sideKey = '" + sideLabel + "';\n";
-        s += "    var sideLayer = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
-        s += "                    (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
-        s += "                    (sideKey === 'left') ? [leftEdge, topEdge] :\n";
-        s += "                    [rightEdge, topEdge];\n";
-        s += "    fromComp(L.toComp(sideLayer));\n";
+        s += "    fromComp(L.toComp(" + sidePoint + "));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -825,12 +820,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var rightEdge = leftPad + ex[1];\n";
         s += "  var topEdge = topPad + ey[0];\n";
         s += "  var bottomEdge = topPad + ey[1];\n";
-        s += "  var sideKey = '" + sideLabel + "';\n";
-        s += "  var side = (sideKey === 'top') ? [leftEdge, topEdge] :\n";
-        s += "             (sideKey === 'bottom') ? [leftEdge, bottomEdge] :\n";
-        s += "             (sideKey === 'left') ? [leftEdge, topEdge] :\n";
-        s += "             [rightEdge, topEdge];\n";
-        s += "  toLayer(side);\n";
+        s += "  toLayer(" + sidePoint + ");\n";
         s += "}\n";
         return s;
     }
