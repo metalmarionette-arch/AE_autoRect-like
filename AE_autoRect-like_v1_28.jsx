@@ -1113,12 +1113,7 @@ function createAutoRectForTargets(comp, targets, option) {
             addCornerBrackets(shape, "multi", names, option, option.includeExtents);
             addSideLines(shape, "multi", names, option, option.includeExtents);
 
-            if (option.parentTo) {
-                shape.parent = topTgt;
-                shape.transform.position.setValue(shape.threeDLayer ? [0,0,0] : [0,0]);
-            } else {
-                linkLayerTransformByExpr(shape, topTgt);
-            }
+            linkLayerTransformByExpr(shape, topTgt);
 
             shape.adjustmentLayer = !!option.makeAdjustment;
 
@@ -1158,23 +1153,15 @@ function createAutoRectForTargets(comp, targets, option) {
                 addBracketEffects(shape, option);
                 addSideLineEffects(shape, option);
 
-                var useParentMode = option.parentTo;
-                var modeName = useParentMode ? "parent" : "direct";
+                var modeName = "direct";
                 rect.property("Size").expression      = buildRectSizeExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
                 rect.property("Position").expression  = buildRectPosExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
-                if (!useParentMode) {
-                    linkLayerTransformByExpr(shape, tgt);
-                }
+                linkLayerTransformByExpr(shape, tgt);
                 rect.property("Roundness").expression = buildRoundnessExpr();
 
                 ensureStrokeFill(gp, option);
                 addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
                 addSideLines(shape, modeName, [tgt.name], option, option.includeExtents);
-
-                if (useParentMode) {
-                    shape.parent = tgt;
-                    shape.transform.position.setValue(shape.threeDLayer ? [0,0,0] : [0,0]);
-                }
 
                 shape.adjustmentLayer = !!option.makeAdjustment;
 
@@ -1402,9 +1389,7 @@ function createAutoRectForTargets(comp, targets, option) {
             }
 
             var shrinkXVal = 0, shrinkYVal = 0;
-
-            // 親子付けモードっぽいかどうか（親＝ターゲットなら parent モード）
-            var mode = (L.parent === target) ? "parent" : "direct";
+            var mode = "direct";
 
             // 段落テキスト拡張境界を含めるかは元情報が無いので、とりあえず true で復活
             var includeExtents = true;
@@ -1431,6 +1416,8 @@ function createAutoRectForTargets(comp, targets, option) {
                     applyExpression(props.round, rdExpr);
                 }
             }
+
+            linkLayerTransformByExpr(L, target);
 
             // 固定ベース用エフェクトがあってもそのまま残す（現状は使っていない）
         }
@@ -1471,7 +1458,6 @@ function createAutoRectForTargets(comp, targets, option) {
         sw.orientation = "row";
         sw.alignment   = "fill";
         var ckInsertAbove = sw.add("checkbox", undefined, "上に挿入");
-        var ckParent      = sw.add("checkbox", undefined, "ターゲットに親子付け");
         var ckAdj         = sw.add("checkbox", undefined, "調整レイヤーにする");
         var ckMatte       = sw.add("checkbox", undefined, "トラックマット(アルファ)");
         var ckAllowAuto   = sw.add("checkbox", undefined, "重複許可");
@@ -1606,7 +1592,6 @@ function createAutoRectForTargets(comp, targets, option) {
 
         // チェックの既定値
         ckInsertAbove.value = !!loadSetting("insertAbove", false);
-        ckParent.value      = !!loadSetting("parentTo",  true);
         ckAdj.value         = !!loadSetting("makeAdj",   false);
         ckMatte.value       = !!loadSetting("setMatte",  false);
         ckAllowAuto.value   = !!loadSetting("allowAuto", true);
@@ -1731,7 +1716,6 @@ function createAutoRectForTargets(comp, targets, option) {
             saveSetting("sideLineStrokeG", sideStrokeC[1]);
             saveSetting("sideLineStrokeB", sideStrokeC[2]);
             saveSetting("insertAbove", ckInsertAbove.value);
-            saveSetting("parentTo", ckParent.value);
             saveSetting("makeAdj", ckAdj.value);
             saveSetting("setMatte", ckMatte.value);
             saveSetting("allowAuto", ckAllowAuto.value);
@@ -1739,7 +1723,6 @@ function createAutoRectForTargets(comp, targets, option) {
 
             return {
                 insertAbove:   ckInsertAbove.value,
-                parentTo:      ckParent.value,
                 makeAdjustment:ckAdj.value,
                 setTrackMatte: ckMatte.value,
                 includeExtents:ckExt.value,
@@ -1834,11 +1817,10 @@ function createAutoRectForTargets(comp, targets, option) {
                     alert("作成中にエラーが発生しました: " + err.toString());
                 }
 
-                // 万一作成数が 0 の場合は、親子付けなし・ブラケットなしでリトライ
+                // 万一作成数が 0 の場合は、ブラケットなしでリトライ
                 if (created.length === 0 && targets.length > 0) {
                     var fallbackOpt = {};
                     for (var k in opt) if (opt.hasOwnProperty(k)) fallbackOpt[k] = opt[k];
-                    fallbackOpt.parentTo = false;
                     fallbackOpt.bracketOn = false;
                     try {
                         created = createAutoRectForTargets(comp, targets, fallbackOpt);
