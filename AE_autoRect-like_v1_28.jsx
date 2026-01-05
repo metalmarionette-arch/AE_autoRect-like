@@ -1482,22 +1482,22 @@ function createAutoRectForTargets(comp, targets, option) {
         opt.alignChildren = "left";
         opt.alignment = "fill";
 
-        var row1 = opt.add("group");
-        row1.add("statictext", undefined, "余白 X");
-        var etPadX = row1.add("edittext", undefined, String(loadSetting("padX", 16)));
-        etPadX.characters = 6;
-        var slPadX = row1.add("slider", undefined, num(etPadX.text, 16), 0, 300);
-        slPadX.preferredSize = [120, 18];
-        row1.add("statictext", undefined, "余白 Y");
-        var etPadY = row1.add("edittext", undefined, String(loadSetting("padY", 8)));
-        etPadY.characters = 6;
-        var slPadY = row1.add("slider", undefined, num(etPadY.text, 8), 0, 300);
-        slPadY.preferredSize = [120, 18];
-        row1.add("statictext", undefined, "角丸");
-        var etCorner = row1.add("edittext", undefined, String(loadSetting("corner", 0)));
-        etCorner.characters = 6;
-        var slCorner = row1.add("slider", undefined, num(etCorner.text, 0), 0, 100);
-        slCorner.preferredSize = [120, 18];
+        function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) {
+            var row = parent.add("group");
+            row.add("statictext", undefined, label);
+            var et = row.add("edittext", undefined, String(loadSetting(settingKey, defVal)));
+            et.characters = chars || 6;
+            var sl = row.add("slider", undefined, num(et.text, defVal), minVal, maxVal);
+            sl.preferredSize = [160, 18];
+            return {row: row, edit: et, slider: sl};
+        }
+
+        var padXRow = addSliderRow(opt, "余白 X", "padX", 16, 0, 300, 6);
+        var padYRow = addSliderRow(opt, "余白 Y", "padY", 8, 0, 300, 6);
+        var cornerRow = addSliderRow(opt, "角丸", "corner", 0, 0, 100, 6);
+        var etPadX = padXRow.edit;
+        var etPadY = padYRow.edit;
+        var etCorner = cornerRow.edit;
 
         var rowUnit = opt.add("group");
         rowUnit.add("statictext", undefined, "余白単位");
@@ -1512,11 +1512,9 @@ function createAutoRectForTargets(comp, targets, option) {
         var row3 = opt.add("group");
         var ckStroke = row3.add("checkbox", undefined, "線（Stroke）");
         ckStroke.value = !!loadSetting("strokeOn", true);
-        row3.add("statictext", undefined, "線幅");
-        var etStrokeW = row3.add("edittext", undefined, String(loadSetting("strokeW", 4)));
-        etStrokeW.characters = 4;
-        var slStrokeW = row3.add("slider", undefined, num(etStrokeW.text, 4), 0, 50);
-        slStrokeW.preferredSize = [120, 18];
+        var strokeRow = addSliderRow(opt, "線幅", "strokeW", 4, 0, 50, 4);
+        var etStrokeW = strokeRow.edit;
+        var slStrokeW = strokeRow.slider;
 
         var row4 = opt.add("group");
         var ckFill = row4.add("checkbox", undefined, "塗り（Fill）");
@@ -1539,11 +1537,12 @@ function createAutoRectForTargets(comp, targets, option) {
         var brTop = brPanel.add("group");
         var ckBracket = brTop.add("checkbox", undefined, "コーナーブラケット");
         ckBracket.value = !!loadSetting("bracketOn", false);
-        brTop.add("statictext", undefined, "長さ");
-        var etBracketLen = brTop.add("edittext", undefined, String(loadSetting("bracketLen", 24)));
-        etBracketLen.characters = 5;
-        brTop.add("statictext", undefined, "スタイル");
-        var ddBracketStyle = brTop.add("dropdownlist", undefined, ["内向き","外向き"]);
+        var brLenRow = addSliderRow(brPanel, "長さ", "bracketLen", 24, 0, 300, 5);
+        var etBracketLen = brLenRow.edit;
+        var slBracketLen = brLenRow.slider;
+        var brStyleRow = brPanel.add("group");
+        brStyleRow.add("statictext", undefined, "スタイル");
+        var ddBracketStyle = brStyleRow.add("dropdownlist", undefined, ["内向き","外向き"]);
         var brStyleDef = num(loadSetting("bracketStyle", 0), 0);
         ddBracketStyle.selection = (brStyleDef >= 1) ? 1 : 0;
 
@@ -1557,17 +1556,16 @@ function createAutoRectForTargets(comp, targets, option) {
         ckBrRT.value = !!loadSetting("bracketRT", true);
         ckBrLB.value = !!loadSetting("bracketLB", true);
         ckBrRB.value = !!loadSetting("bracketRB", true);
-        var brStrokeRow = brPanel.add("group");
-        brStrokeRow.add("statictext", undefined, "線幅");
-        var etBracketStroke = brStrokeRow.add("edittext", undefined, String(loadSetting("bracketStrokeW", 4)));
-        etBracketStroke.characters = 4;
-        var brColorSwatch = createColorSwatch(brStrokeRow, "線色", [
+        var brStrokeRow = addSliderRow(brPanel, "線幅", "bracketStrokeW", 4, 0, 50, 4);
+        var etBracketStroke = brStrokeRow.edit;
+        var slBracketStroke = brStrokeRow.slider;
+        var brColorSwatch = createColorSwatch(brStrokeRow.row, "線色", [
             loadSetting("bracketStrokeR", 0.2),
             loadSetting("bracketStrokeG", 0.6),
             loadSetting("bracketStrokeB", 1.0)
         ]);
 
-                var sidePanel = opt.add("panel", undefined, "サイドライン");
+        var sidePanel = opt.add("panel", undefined, "サイドライン");
         sidePanel.orientation = "column";
         sidePanel.alignChildren = "left";
         var sideTop = sidePanel.add("group");
@@ -1585,11 +1583,10 @@ function createAutoRectForTargets(comp, targets, option) {
         ckSideLeft.value = !!loadSetting("sideLineLeft", true);
         ckSideRight.value = !!loadSetting("sideLineRight", true);
 
-        var sideStrokeRow = sidePanel.add("group");
-        sideStrokeRow.add("statictext", undefined, "線幅");
-        var etSideLineStroke = sideStrokeRow.add("edittext", undefined, String(loadSetting("sideLineStrokeW", 4)));
-        etSideLineStroke.characters = 4;
-        var sideColorSwatch = createColorSwatch(sideStrokeRow, "線色", [
+        var sideStrokeRow = addSliderRow(sidePanel, "線幅", "sideLineStrokeW", 4, 0, 50, 4);
+        var etSideLineStroke = sideStrokeRow.edit;
+        var slSideLineStroke = sideStrokeRow.slider;
+        var sideColorSwatch = createColorSwatch(sideStrokeRow.row, "線色", [
             loadSetting("sideLineStrokeR", 0.2),
             loadSetting("sideLineStrokeG", 0.6),
             loadSetting("sideLineStrokeB", 1.0)
@@ -1659,10 +1656,13 @@ function createAutoRectForTargets(comp, targets, option) {
             syncFromEdit();
         }
 
-        bindSlider(etPadX, slPadX, 0, 300);
-        bindSlider(etPadY, slPadY, 0, 300);
-        bindSlider(etCorner, slCorner, 0, 100);
+        bindSlider(padXRow.edit, padXRow.slider, 0, 300);
+        bindSlider(padYRow.edit, padYRow.slider, 0, 300);
+        bindSlider(cornerRow.edit, cornerRow.slider, 0, 100);
         bindSlider(etStrokeW, slStrokeW, 0, 50);
+        bindSlider(etBracketLen, slBracketLen, 0, 300);
+        bindSlider(etBracketStroke, slBracketStroke, 0, 50);
+        bindSlider(etSideLineStroke, slSideLineStroke, 0, 50);
 
         function gatherOptions(){
             var padX   = num(etPadX.text, 16);
