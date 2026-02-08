@@ -192,10 +192,11 @@
     // -----------------------------
     function buildLayerRectDataFunc(includeExtentsStr) {
         var s = "";
+        s += "function layerPoint2D(T, x, y){ return T.threeDLayer ? [x, y, 0] : [x, y]; }\n";
         s += "function layerRectData(L){\n";
         s += "  var r = L.sourceRectAtTime(time,"+includeExtentsStr+");\n";
-        s += "  var p1 = L.toComp([r.left, r.top]);\n";
-        s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
+        s += "  var p1 = L.toComp(layerPoint2D(L, r.left, r.top));\n";
+        s += "  var p2 = L.toComp(layerPoint2D(L, r.left + r.width, r.top + r.height));\n";
         s += "  var l = Math.min(p1[0], p2[0]);\n";
         s += "  var t = Math.min(p1[1], p2[1]);\n";
         s += "  var rgt = Math.max(p1[0], p2[0]);\n";
@@ -208,8 +209,8 @@
         s += "        var sL = src.layer(i);\n";
         s += "        if (!sL || !sL.sourceRectAtTime) continue;\n";
         s += "        var rr = sL.sourceRectAtTime(time,"+includeExtentsStr+");\n";
-        s += "        var q1 = L.toComp(sL.toComp([rr.left, rr.top]));\n";
-        s += "        var q2 = L.toComp(sL.toComp([rr.left + rr.width, rr.top + rr.height]));\n";
+        s += "        var q1 = L.toComp(sL.toComp(layerPoint2D(sL, rr.left, rr.top)));\n";
+        s += "        var q2 = L.toComp(sL.toComp(layerPoint2D(sL, rr.left + rr.width, rr.top + rr.height)));\n";
         s += "        l = Math.min(l, q1[0], q2[0]);\n";
         s += "        t = Math.min(t, q1[1], q2[1]);\n";
         s += "        rgt = Math.max(rgt, q1[0], q2[0]);\n";
@@ -264,6 +265,7 @@
         s += "  else if (f < 0){ end = base * (1 - amt); }\n";
         s += "  return [start, end];\n";
         s += "}\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
         s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
@@ -361,7 +363,8 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
+        s += "function toLayer(pt){ return to2D(fromComp(pt)); }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -392,7 +395,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  fromComp(L.toComp([cx, cy]));\n";
+            s += "  to2D(fromComp(L.toComp(L.threeDLayer ? [cx, cy, 0] : [cx, cy])));\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -415,7 +418,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  fromComp(L.toComp([cx, cy]));\n";
+            s += "  to2D(fromComp(L.toComp(L.threeDLayer ? [cx, cy, 0] : [cx, cy])));\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -614,7 +617,8 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
+        s += "function toLayer(pt){ return to2D(fromComp(pt)); }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -646,7 +650,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromComp(L.toComp(cornerLayer));\n";
+        s += "    to2D(fromComp(L.toComp(L.threeDLayer ? [cornerLayer[0], cornerLayer[1], 0] : cornerLayer)));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -669,7 +673,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromComp(L.toComp(cornerLayer));\n";
+        s += "    to2D(fromComp(L.toComp(L.threeDLayer ? [cornerLayer[0], cornerLayer[1], 0] : cornerLayer)));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -735,7 +739,8 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
+        s += "function toLayer(pt){ return to2D(fromComp(pt)); }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -764,7 +769,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    fromComp(L.toComp(" + sidePoint + "));\n";
+        s += "    to2D(fromComp(L.toComp(L.threeDLayer ? [" + sidePoint + "[0], " + sidePoint + "[1], 0] : " + sidePoint + ")));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -784,7 +789,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    fromComp(L.toComp(" + sidePoint + "));\n";
+        s += "    to2D(fromComp(L.toComp(L.threeDLayer ? [" + sidePoint + "[0], " + sidePoint + "[1], 0] : " + sidePoint + ")));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
