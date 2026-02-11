@@ -1,8 +1,11 @@
 ﻿/*==============================================================================
     オート矩形ツール（テキスト追従）修正版
-    v1.0.4
+    v1.1.2
 
     修正履歴:
+      v1.1.2: アンカー指定を廃止し、余白後サイズを左右/上下方向に割合縮小できるスライダーを追加。回転対応ボックスを削除。
+      v1.1.1: コーナーブラケット機能を復活し、アンカー追従とオプションUIを整理。
+      v1.1.0: 9ポイントアンカー、％余白を追加。コーナーブラケット機能は削除。
       v1.0.4: 「余白固定(新)」実行時、長方形パスの検索処理(getRectProps)の
               バグを修正。これによりエクスプレッションが正しく更新されるよう対応。
       v1.0.3: visitPropsWithExpressionを使わず直接プロパティを取得する方式へ変更。
@@ -86,13 +89,13 @@
         // ---- レイヤー位置の扱い ----
         // ・旧UI（レイヤー参照なし）の場合 → 常に target の直上に移動しないとマットにできない
         // ・新UI（setTrackMatte / trackMatteLayer有り）の場合 →
-        //     「上に作成」がON（insertAbove=true）の時だけ上に移動
+        //     「上に挿入」がON（insertAbove=true）の時だけ上に移動
         //     それ以外は元の位置のままにする
         if (!canUseLayerRefMatte) {
             // 古いトラックマット仕様: 必ず直上へ
             matteLayer.moveBefore(target);
         } else if (insertAbove) {
-            // 新UIでも「上に作成」指定があるときだけ直上へ
+            // 新UIでも「上に挿入」指定があるときだけ直上へ
             matteLayer.moveBefore(target);
         }
         // insertAbove が false で新UIの場合は位置をいじらない
@@ -187,69 +190,86 @@
     // -----------------------------
     // エクスプレッション生成
     // -----------------------------
-    // mode: "parent" | "direct" | "multi"
-    function buildRectSizeExpr(mode, targetNameList, includeExtents) {
-        var inc = includeExtents ? "true" : "false";
-        var s  = "";
-        s += "var px = effect('余白 X')('スライダー');\n";
-        s += "var py = effect('余白 Y')('スライダー');\n";
-
-        if (mode === "parent") {
-            s += "var L = parent;\n";
-            s += "var r = L ? L.sourceRectAtTime(time,"+inc+") : {width:100,height:100};\n";
-            s += "var w = Math.max(0, r.width  + px*2);\n";
-            s += "var h = Math.max(0, r.height + py*2);\n";
-            s += "[w, h];\n";
-
-        } else if (mode === "direct") {
-            s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
-            s += "var r = L ? L.sourceRectAtTime(time,"+inc+") : {width:100,height:100};\n";
-            s += "var w = Math.max(0, r.width  + px*2);\n";
-            s += "var h = Math.max(0, r.height + py*2);\n";
-            s += "[w, h];\n";
-
-        } else { // multi
-            s += "var names = [\n";
-            for (var i=0;i<targetNameList.length;i++){
-                s += "  '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
-            }
-            s += "];\n";
-            s += "function layerRect(L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  var p1 = L.toComp([r.left, r.top]);\n";
-            s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
-            s += "  return [p1[0], p1[1], p2[0], p2[1]];\n";
-            s += "}\n";
-            s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
-            s += "for (var i=0;i<names.length;i++){\n";
-            s += "  var L = thisComp.layer(names[i]);\n";
-            s += "  if(!L) continue;\n";
-            s += "  if (!L.sourceRectAtTime) continue;\n";
-            s += "  var rc = layerRect(L);\n";
-            s += "  l = Math.min(l, rc[0]);\n";
-            s += "  t = Math.min(t, rc[1]);\n";
-            s += "  r = Math.max(r, rc[2]);\n";
-            s += "  b = Math.max(b, rc[3]);\n";
-            s += "}\n";
-            s += "var w = Math.max(0, r - l) + px*2;\n";
-            s += "var h = Math.max(0, b - t) + py*2;\n";
-            s += "[w, h];\n";
-        }
+    function buildLayerRectDataFunc(includeExtentsStr) {
+        var s = "";
+        s += "function layerRectData(L){\n";
+        s += "  var r = L.sourceRectAtTime(time,"+includeExtentsStr+");\n";
+        s += "  var p1 = L.toComp([r.left, r.top]);\n";
+        s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
+        s += "  var l = Math.min(p1[0], p2[0]);\n";
+        s += "  var t = Math.min(p1[1], p2[1]);\n";
+        s += "  var rgt = Math.max(p1[0], p2[0]);\n";
+        s += "  var btm = Math.max(p1[1], p2[1]);\n";
+        s += "  try{\n";
+        s += "    var src = L.source;\n";
+        s += "    if (src && src.numLayers){\n";
+        s += "      l=1e9; t=1e9; rgt=-1e9; btm=-1e9;\n";
+        s += "      for (var i=1;i<=src.numLayers;i++){\n";
+        s += "        var sL = src.layer(i);\n";
+        s += "        if (!sL || !sL.sourceRectAtTime) continue;\n";
+        s += "        var rr = sL.sourceRectAtTime(time,"+includeExtentsStr+");\n";
+        s += "        var q1 = L.toComp(sL.toComp([rr.left, rr.top]));\n";
+        s += "        var q2 = L.toComp(sL.toComp([rr.left + rr.width, rr.top + rr.height]));\n";
+        s += "        l = Math.min(l, q1[0], q2[0]);\n";
+        s += "        t = Math.min(t, q1[1], q2[1]);\n";
+        s += "        rgt = Math.max(rgt, q1[0], q2[0]);\n";
+        s += "        btm = Math.max(btm, q1[1], q2[1]);\n";
+        s += "      }\n";
+        s += "      var l2=1e9,t2=1e9,r2=-1e9,b2=-1e9; var found=false;\n";
+        s += "      var gx=6, gy=6;\n";
+        s += "      for (var yi=0; yi<gy; yi++){\n";
+        s += "        var cy = t + (btm - t) * (yi/(gy-1));\n";
+        s += "        for (var xi=0; xi<gx; xi++){\n";
+        s += "          var cx = l + (rgt - l) * (xi/(gx-1));\n";
+        s += "          var rad = [Math.max(0.5,(rgt-l)/gx/2), Math.max(0.5,(btm-t)/gy/2)];\n";
+        s += "          var alpha = L.sampleImage(L.fromComp([cx, cy]), rad, true, time)[3];\n";
+        s += "          if (alpha > 0.001){\n";
+        s += "            if (!found){ l2=cx; r2=cx; t2=cy; b2=cy; found=true; }\n";
+        s += "            l2 = Math.min(l2, cx); r2 = Math.max(r2, cx); t2 = Math.min(t2, cy); b2 = Math.max(b2, cy);\n";
+        s += "          }\n";
+        s += "        }\n";
+        s += "      }\n";
+        s += "      if (found){ l=l2; t=t2; rgt=r2; btm=b2; }\n";
+        s += "    }\n";
+        s += "  }catch(e){}\n";
+        s += "  return {l:l, t:t, r:rgt, b:btm, w:Math.max(0,rgt-l), h:Math.max(0,btm-t)};\n";
+        s += "}\n";
         return s;
     }
 
-    function buildRectPosExpr(mode, targetNameList, includeExtents) {
+    // mode: "parent" | "direct" | "multi"
+    function buildRectSizeExpr(mode, targetNameList, includeExtents, shrinkXVal, shrinkYVal) {
         var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
         var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "function padVals(r){\n";
+        s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
+        s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
+        s += "  return [px, py];\n";
+        s += "}\n";
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
+        s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
             s += "var L = parent;\n";
             s += "if (L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  // テキストのバウンディングの中心をコンポ座標に変換\n";
-            s += "  var c = L.toComp([r.left + r.width/2, r.top + r.height/2]);\n";
-            s += "  // それをシェイプレイヤーのローカル座標に戻して配置\n";
-            s += "  fromWorld(c);\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  var p = padVals({width:rd.w, height:rd.h});\n";
+            s += "  var px = p[0], py = p[1];\n";
+            s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
+            s += "  var h0 = Math.max(0, rd.h + py*2);\n";
+            s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
+            s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
+            s += "  [w1,h1];\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -257,9 +277,105 @@
         } else if (mode === "direct") {
             s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
             s += "if (L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  var c = L.toComp([r.left + r.width/2, r.top + r.height/2]);\n";
-            s += "  fromWorld(c);\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  var p = padVals({width:rd.w, height:rd.h});\n";
+            s += "  var px = p[0], py = p[1];\n";
+            s += "  var w0 = Math.max(0, rd.w  + px*2);\n";
+            s += "  var h0 = Math.max(0, rd.h + py*2);\n";
+            s += "  var w1 = Math.max(0, w0 * (1 - fx));\n";
+            s += "  var h1 = Math.max(0, h0 * (1 - fy));\n";
+            s += "  [w1,h1];\n";
+            s += "}else{\n";
+            s += "  [0,0];\n";
+            s += "}\n";
+
+        } else { // multi
+            s += "var names = [\n";
+            for (var i=0;i<targetNameList.length;i++){
+                s += "  '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
+            }
+            s += "];\n";
+            s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+            s += "for (var i=0;i<names.length;i++){\n";
+            s += "  var L = thisComp.layer(names[i]);\n";
+            s += "  if(!L) continue;\n";
+            s += "  if (!L.sourceRectAtTime) continue;\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  l = Math.min(l, rd.l);\n";
+            s += "  t = Math.min(t, rd.t);\n";
+            s += "  r = Math.max(r, rd.r);\n";
+            s += "  b = Math.max(b, rd.b);\n";
+            s += "}\n";
+            s += "var baseW = Math.max(0, r - l);\n";
+            s += "var baseH = Math.max(0, b - t);\n";
+            s += "var p = padVals({width:baseW, height:baseH});\n";
+            s += "var px = p[0], py = p[1];\n";
+            s += "var w0 = Math.max(0, baseW + px*2);\n";
+            s += "var h0 = Math.max(0, baseH + py*2);\n";
+            s += "var w1 = Math.max(0, w0 * (1 - fx));\n";
+            s += "var h1 = Math.max(0, h0 * (1 - fy));\n";
+            s += "[w1, h1];\n";
+        }
+        return s;
+    }
+
+    function buildRectPosExpr(mode, targetNameList, includeExtents, shrinkXVal, shrinkYVal) {
+        var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', " + sX + ");\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', " + sY + ");\n";
+        s += "function padVals(r){\n";
+        s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
+        s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
+        s += "  return [px, py];\n";
+        s += "}\n";
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
+        s += buildLayerRectDataFunc(inc);
+
+        if (mode === "parent") {
+            s += "var L = parent;\n";
+            s += "if (L){\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  var p = padVals({width:rd.w, height:rd.h});\n";
+            s += "  var px = p[0], py = p[1];\n";
+            s += "  var baseW = Math.max(0, rd.w + px*2);\n";
+            s += "  var baseH = Math.max(0, rd.h + py*2);\n";
+            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
+            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
+            s += "  var leftPad = rd.l - px;\n";
+            s += "  var topPad  = rd.t - py;\n";
+            s += "  var cx = leftPad + baseW/2;\n";
+            s += "  var cy = topPad + baseH/2;\n";
+            s += "  var centerComp = L.toComp([cx, cy]);\n";
+            s += "  fromWorld(centerComp);\n";
+            s += "}else{\n";
+            s += "  [0,0];\n";
+            s += "}\n";
+
+        } else if (mode === "direct") {
+            s += "var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\'") +"');\n";
+            s += "if (L){\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  var p = padVals({width:rd.w, height:rd.h});\n";
+            s += "  var px = p[0], py = p[1];\n";
+            s += "  var baseW = Math.max(0, rd.w + px*2);\n";
+            s += "  var baseH = Math.max(0, rd.h + py*2);\n";
+            s += "  var w = Math.max(0, baseW * (1 - fx));\n";
+            s += "  var h = Math.max(0, baseH * (1 - fy));\n";
+            s += "  var leftPad = rd.l - px;\n";
+            s += "  var topPad  = rd.t - py;\n";
+            s += "  var cx = leftPad + baseW/2;\n";
+            s += "  var cy = topPad + baseH/2;\n";
+            s += "  var centerComp = L.toComp([cx, cy]);\n";
+            s += "  fromWorld(centerComp);\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -271,10 +387,8 @@
             }
             s += "];\n";
             s += "function rectOf(L){\n";
-            s += "  var r = L.sourceRectAtTime(time,"+inc+");\n";
-            s += "  var p1 = L.toComp([r.left, r.top]);\n";
-            s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
-            s += "  return [p1[0], p1[1], p2[0], p2[1]];\n";
+            s += "  var rd = layerRectData(L);\n";
+            s += "  return [rd.l, rd.t, rd.r, rd.b];\n";
             s += "}\n";
             s += "var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
             s += "for (var i=0;i<names.length;i++){\n";
@@ -287,12 +401,141 @@
             s += "  r=Math.max(r,rc[2]);\n";
             s += "  b=Math.max(b,rc[3]);\n";
             s += "}\n";
-            s += "var cx = (l+r)/2;\n";
-            s += "var cy = (t+b)/2;\n";
-            s += "fromWorld([cx,cy]);\n";
+            s += "var baseW = Math.max(0, r - l);\n";
+            s += "var baseH = Math.max(0, b - t);\n";
+            s += "var p = padVals({width:baseW, height:baseH});\n";
+            s += "var px = p[0], py = p[1];\n";
+            s += "var w0 = Math.max(0, baseW + px*2);\n";
+            s += "var h0 = Math.max(0, baseH + py*2);\n";
+            s += "var w = Math.max(0, w0 * (1 - fx));\n";
+            s += "var h = Math.max(0, h0 * (1 - fy));\n";
+            s += "var leftPad = l - px;\n";
+            s += "var topPad  = t - py;\n";
+            s += "var cx = leftPad + w0/2;\n";
+            s += "var cy = topPad + h0/2;\n";
+            s += "fromWorld([cx, cy]);\n";
         }
         return s;
     }
+
+    function buildBracketPathExpr(cornerLabel, dirX, dirY) {
+        var s = "";
+        s += "function pick(name, def){ var ef = effect(name); if(!ef) return def; var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }\n";
+        s += "var enabled = pick('コーナーブラケット', 0);\n";
+        s += "var cornerEnabled = pick('ブラケット " + cornerLabel + "', 0);\n";
+        s += "var path;\n";
+        s += "if (enabled < 0.5 || cornerEnabled < 0.5){\n";
+        s += "  path = createPath([[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        s += "} else {\n";
+        s += "  var len = pick('ブラケット長', 0);\n";
+        s += "  var style = pick('ブラケットスタイル', 0);\n";
+        s += "  var sign = (style >= 0.5) ? -1 : 1;\n";
+        s += "  var dx = " + dirX + " * sign * len;\n";
+        s += "  var dy = " + dirY + " * sign * len;\n";
+        // コーナー(0,0)を曲がり点にし、縦→曲がり→横の順で描画
+        s += "  path = createPath([[0,dy],[0,0],[dx,0]], [[0,0],[0,0],[0,0]], [[0,0],[0,0],[0,0]], false);\n";
+        s += "}\n";
+        s += "path;\n";
+        return s;
+    }
+
+    function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, cornerY, shrinkXVal, shrinkYVal) {
+        var inc = includeExtents ? "true" : "false";
+        var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
+        var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); if(!ef) return def; var sld = ef('スライダー'); return (sld && isFinite(sld.value)) ? sld.value : def; }\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = " + sX + ";\n";
+        s += "var shrinkY = " + sY + ";\n";
+        s += "function padVals(r){\n";
+        s += "  var px = (usePct > 0.5) ? r.width  * (pxSlider*0.01) : pxSlider;\n";
+        s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
+        s += "  return [px, py];\n";
+        s += "}\n";
+        s += "function shrink01(v){ return Math.max(0, Math.min(1, Math.abs(v)*0.01)); }\n";
+        s += "var fx = shrink01(shrinkX);\n";
+        s += "var fy = shrink01(shrinkY);\n";
+        s += buildLayerRectDataFunc(inc);
+        s += "var mode = '" + mode + "';\n";
+        s += "if (mode === 'parent') {\n";
+        s += "  var L = parent;\n";
+        s += "  if (L){\n";
+        s += "    var rd = layerRectData(L);\n";
+        s += "    var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "    var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "    var w = Math.max(0, baseW * (1 - fx));\n";
+        s += "    var h = Math.max(0, baseH * (1 - fy));\n";
+        s += "    var leftPad = rd.l - px;\n";
+        s += "    var topPad  = rd.t - py;\n";
+        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
+        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
+        s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
+        s += "    var cornerComp = L.toComp(cornerLayer);\n";
+        s += "    fromWorld(cornerComp);\n";
+        s += "  } else {\n";
+        s += "    [0,0];\n";
+        s += "  }\n";
+        s += "} else if (mode === 'direct') {\n";
+        s += "  var L = thisComp.layer('"+ targetNameList[0].replace(/'/g,"\\\\'") +"');\n";
+        s += "  if (L){\n";
+        s += "    var rd = layerRectData(L);\n";
+        s += "    var p = padVals({width:rd.w, height:rd.h});\n";
+        s += "    var px = p[0], py = p[1];\n";
+        s += "    var baseW = Math.max(0, rd.w + px*2);\n";
+        s += "    var baseH = Math.max(0, rd.h + py*2);\n";
+        s += "    var w = Math.max(0, baseW * (1 - fx));\n";
+        s += "    var h = Math.max(0, baseH * (1 - fy));\n";
+        s += "    var leftPad = rd.l - px;\n";
+        s += "    var topPad  = rd.t - py;\n";
+        s += "    var leftEdge = leftPad + (baseW - w)/2;\n";
+        s += "    var topEdge  = topPad + (baseH - h)/2;\n";
+        s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
+        s += "    var cornerComp = L.toComp(cornerLayer);\n";
+        s += "    fromWorld(cornerComp);\n";
+        s += "  } else {\n";
+        s += "    [0,0];\n";
+        s += "  }\n";
+        s += "} else {\n";
+        s += "  var names = [\n";
+        for (var i=0;i<targetNameList.length;i++){
+            s += "    '"+ targetNameList[i].replace(/'/g,"\\'") +"'" + (i<targetNameList.length-1 ? ",\n" : "\n");
+        }
+        s += "  ];\n";
+        s += "  function rectOf(L){ var rd = layerRectData(L); return [rd.l, rd.t, rd.r, rd.b]; }\n";
+        s += "  var l=1e9,t=1e9,r=-1e9,b=-1e9;\n";
+        s += "  for (var i=0;i<names.length;i++){\n";
+        s += "    var L=thisComp.layer(names[i]);\n";
+        s += "    if(!L) continue;\n";
+        s += "    if(!L.sourceRectAtTime) continue;\n";
+        s += "    var rc=rectOf(L);\n";
+        s += "    l=Math.min(l,rc[0]);\n";
+        s += "    t=Math.min(t,rc[1]);\n";
+        s += "    r=Math.max(r,rc[2]);\n";
+        s += "    b=Math.max(b,rc[3]);\n";
+        s += "  }\n";
+        s += "  var baseW = Math.max(0, r - l);\n";
+        s += "  var baseH = Math.max(0, b - t);\n";
+        s += "  var p = padVals({width:baseW, height:baseH});\n";
+        s += "  var px = p[0], py = p[1];\n";
+        s += "  var w0 = Math.max(0, baseW + px*2);\n";
+        s += "  var h0 = Math.max(0, baseH + py*2);\n";
+        s += "  var w = Math.max(0, w0 * (1 - fx));\n";
+        s += "  var h = Math.max(0, h0 * (1 - fy));\n";
+        s += "  var leftPad = l - px;\n";
+        s += "  var topPad  = t - py;\n";
+        s += "  var leftEdge = leftPad + (w0 - w)/2;\n";
+        s += "  var topEdge  = topPad + (h0 - h)/2;\n";
+        s += "  var corner = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
+        s += "  fromWorld(corner);\n";
+        s += "}\n";
+        return s;
+    }
+
 
 
     function buildRoundnessExpr() {
@@ -328,19 +571,29 @@
         var g = group.property("Contents");
         var stroke = null, fill = null;
 
-        if (opt.strokeOn) {
-            stroke = g.addProperty("ADBE Vector Graphic - Stroke");
-            stroke.property("ADBE Vector Stroke Width").setValue(opt.strokeWidth);
-            if (opt.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(opt.strokeColor);
-        }
+        // 先にフィルを追加し、最後に線を追加することで、線が最前面に表示されるようにする
         if (opt.fillOn) {
             fill = g.addProperty("ADBE Vector Graphic - Fill");
             if (opt.fillColor) fill.property("ADBE Vector Fill Color").setValue(opt.fillColor);
         }
+        if (opt.strokeOn) {
+            stroke = g.addProperty("ADBE Vector Graphic - Stroke");
+            var widthProp = stroke.property("ADBE Vector Stroke Width");
+            if (widthProp.canSetExpression) {
+                widthProp.expression = "var base = " + (opt.strokeWidth || 0) + ";\n" +
+                                       "var adj = effect('線幅 調整') ? effect('線幅 調整')('スライダー') : 0;\n" +
+                                       "Math.max(0, base + adj);";
+            } else {
+                widthProp.setValue(opt.strokeWidth);
+            }
+            if (opt.strokeColor) stroke.property("ADBE Vector Stroke Color").setValue(opt.strokeColor);
+            // 念のため線を末尾に移動しておく（フィルやパスより下に配置）
+            try { stroke.moveTo(g.numProperties); } catch(e) {}
+        }
         return {stroke:stroke, fill:fill};
     }
 
-    function addPaddingAndCornerEffects(layer, padX, padY, corner) {
+    function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
             var sld = fx.addProperty("ADBE Slider Control");
@@ -350,7 +603,32 @@
         }
         addSlider("余白 X", padX);
         addSlider("余白 Y", padY);
+        addSlider("余白%モード", usePct ? 1 : 0);
+        addSlider("縮小 左右%", shrinkX || 0);
+        addSlider("縮小 上下%", shrinkY || 0);
+        addSlider("線幅 調整", 0);
+        addSlider("ブラケット線幅 調整", 0);
         addSlider("角丸", corner);
+    }
+
+    function addBracketEffects(layer, opt) {
+        opt = opt || {};
+        var fx = layer.property("ADBE Effect Parade");
+        function addSlider(name, val){
+            var sld = fx.addProperty("ADBE Slider Control");
+            sld.name = name;
+            sld.property("ADBE Slider Control-0001").setValue(val);
+            return sld;
+        }
+        addSlider("コーナーブラケット", opt.bracketOn ? 1 : 0);
+        addSlider("ブラケット長", opt.bracketLength || 0);
+        addSlider("ブラケットスタイル", opt.bracketStyle || 0);
+        addSlider("ブラケット線幅", opt.bracketStrokeWidth || 0);
+        var corners = opt.bracketCorners || {};
+        addSlider("ブラケット 左上", corners.lt ? 1 : 0);
+        addSlider("ブラケット 右上", corners.rt ? 1 : 0);
+        addSlider("ブラケット 左下", corners.lb ? 1 : 0);
+        addSlider("ブラケット 右下", corners.rb ? 1 : 0);
     }
 
     function ensureFixedBaseEffects(layer, baseSize, basePos) {
@@ -395,20 +673,52 @@
         prop.expressionEnabled = true;
     }
 
+    function addCornerBrackets(shapeLayer, mode, targetNames, option, includeExtents) {
+        option = option || {};
+        var contents = shapeLayer.property("Contents");
+        var root = contents.addProperty("ADBE Vector Group");
+        root.name = "CornerBrackets";
+        var rootContents = root.property("Contents");
+
+        var corners = [
+            {label:"左上", cx:0, cy:0, dx:1,  dy:1},
+            {label:"右上", cx:1, cy:0, dx:-1, dy:1},
+            {label:"左下", cx:0, cy:1, dx:1,  dy:-1},
+            {label:"右下", cx:1, cy:1, dx:-1, dy:-1}
+        ];
+
+        for (var i=0;i<corners.length;i++){
+            var c = corners[i];
+            var gp = rootContents.addProperty("ADBE Vector Group");
+            gp.name = "Bracket " + c.label;
+            var pathShape = gp.property("Contents").addProperty("ADBE Vector Shape - Group");
+            var pathProp = pathShape.property("Path");
+            applyExpression(pathProp, buildBracketPathExpr(c.label, c.dx, c.dy));
+            var posProp = gp.property("Transform").property("Position");
+            applyExpression(posProp, buildBracketPosExpr(mode, targetNames, includeExtents, c.cx, c.cy, option.shrinkX, option.shrinkY));
+        }
+
+        // ストロークは全てのブラケットパスの後ろ（下）に配置して適用する
+        var stroke = rootContents.addProperty("ADBE Vector Graphic - Stroke");
+        var brStrokeW = option.bracketStrokeWidth || option.strokeWidth || 4;
+        var widthProp = stroke.property("ADBE Vector Stroke Width");
+        if (widthProp.canSetExpression) {
+            widthProp.expression =
+                "var baseCtrl = effect('ブラケット線幅');\n" +
+                "var base = baseCtrl ? baseCtrl('スライダー') : " + brStrokeW + ";\n" +
+                "var adj = effect('ブラケット線幅 調整') ? effect('ブラケット線幅 調整')('スライダー') : 0;\n" +
+                "Math.max(0, base + adj);";
+        } else {
+            widthProp.setValue(brStrokeW);
+        }
+        var brColor = option.bracketStrokeColor || option.strokeColor;
+        if (brColor) stroke.property("ADBE Vector Stroke Color").setValue(brColor);
+        try { stroke.moveTo(rootContents.numProperties); } catch(e) {}
+    }
+
     function createAutoRectForTargets(comp, targets, option) {
         var created = [];
 
-        // multi=all のとき 2D/3D 混在なら警告
-        if (option.multiMode === "all") {
-            var has2D=false, has3D=false;
-            for (var i=0;i<targets.length;i++){
-                if (targets[i].threeDLayer) has3D=true; else has2D=true;
-            }
-            if (has2D && has3D) {
-                alert("「選択全体を囲う1つ」モードで 2D/3D が混在しています。\n" +
-                      "期待通りに見えない場合は「各レイヤーに1つずつ」を推奨します。");
-            }
-        }
 
         // ------------ 選択全体で 1 つ ----------
         if (option.multiMode === "all") {
@@ -424,16 +734,18 @@
             gp.name  = "AutoRect";
             var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
-            addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius);
+            addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
+            addBracketEffects(shape, option);
 
             var names = [];
             for (var i=0;i<targets.length;i++) names.push(targets[i].name);
 
-            rect.property("Size").expression      = buildRectSizeExpr("multi", names, option.includeExtents);
-            rect.property("Position").expression  = buildRectPosExpr("multi", names, option.includeExtents);
+            rect.property("Size").expression      = buildRectSizeExpr("multi", names, option.includeExtents, option.shrinkX, option.shrinkY);
+            rect.property("Position").expression  = buildRectPosExpr("multi", names, option.includeExtents, option.shrinkX, option.shrinkY);
             rect.property("Roundness").expression = buildRoundnessExpr();
 
             ensureStrokeFill(gp, option);
+            addCornerBrackets(shape, "multi", names, option, option.includeExtents);
 
             if (option.parentTo) {
                 shape.parent = topTgt;
@@ -476,21 +788,22 @@
                 gp.name  = "AutoRect";
                 var rect = gp.property("Contents").addProperty("ADBE Vector Shape - Rect");
 
-                addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius);
+                addPaddingAndCornerEffects(shape, option.paddingX, option.paddingY, option.cornerRadius, option.usePaddingPercent);
+                addBracketEffects(shape, option);
 
-                if (option.parentTo) {
-                    rect.property("Size").expression      = buildRectSizeExpr("parent", [tgt.name], option.includeExtents);
-                    rect.property("Position").expression  = buildRectPosExpr("parent", [tgt.name], option.includeExtents);
-                } else {
-                    rect.property("Size").expression      = buildRectSizeExpr("direct", [tgt.name], option.includeExtents);
-                    rect.property("Position").expression  = buildRectPosExpr("direct", [tgt.name], option.includeExtents);
+                var useParentMode = option.parentTo;
+                var modeName = useParentMode ? "parent" : "direct";
+                rect.property("Size").expression      = buildRectSizeExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
+                rect.property("Position").expression  = buildRectPosExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
+                if (!useParentMode) {
                     linkLayerTransformByExpr(shape, tgt);
                 }
                 rect.property("Roundness").expression = buildRoundnessExpr();
 
                 ensureStrokeFill(gp, option);
+                addCornerBrackets(shape, modeName, [tgt.name], option, option.includeExtents);
 
-                if (option.parentTo) {
+                if (useParentMode) {
                     shape.parent = tgt;
                     shape.transform.position.setValue(shape.threeDLayer ? [0,0,0] : [0,0]);
                 }
@@ -602,14 +915,8 @@
 
             for (var i = 1; i <= propGroup.numProperties; i++) {
                 var p = propGroup.property(i);
-                var isRect = (p.matchName === "ADBE Vector Rect Size" ||
-                              p.matchName === "ADBE Vector Rect Position" ||
-                              p.matchName === "ADBE Vector Rect Roundness");
-
-                if (isRect || p.parentProperty === layer.transform) {
-                    if (p.canSetExpression && p.expression !== "") {
-                        callback(p);
-                    }
+                if (p.canSetExpression && p.expression !== "") {
+                    callback(p);
                 }
 
                 if (p.numProperties > 0) scan(p);
@@ -655,70 +962,16 @@
             var padX = padXef.property(1).value;
             var padY = padYef.property(1).value;
 
-            // このレイヤー内の Rect を取得
-            var rects = getRectProps(L);
-            if (!rects || rects.length === 0) continue;
-
-            for (var j = 0; j < rects.length; j++) {
-                var rectProp = rects[j];
-                if (!rectProp) continue;
-
-                var props = getRectSizePosRoundProps(rectProp);
-                var sizeProp  = props.size;
-                var posProp   = props.pos;
-                var roundProp = props.round;
-
-                // ---- Size を「固定ベース＋余白」に書き換え ----
-                if (sizeProp) {
-                    var szVal = sizeProp.valueAtTime(time, false); // 今の見た目 [w, h]
-                    // テキストの素のサイズ（余白抜き）を固定ベースとする
-                    var baseW = Math.max(0, szVal[0] - padX * 2);
-                    var baseH = Math.max(0, szVal[1] - padY * 2);
-
-                    // まず既存のエクスを殺して、今の見た目を書き戻し
-                    sizeProp.expression = "";
-                    sizeProp.expressionEnabled = false;
-                    sizeProp.setValue([
-                        Math.max(0, baseW + padX * 2),
-                        Math.max(0, baseH + padY * 2)
-                    ]);
-
-                    // シンプルな式に差し替え（固定ベースは数値焼き込み）
-                    var szExpr =
-                        "var px = effect('余白 X')('スライダー');\n" +
-                        "var py = effect('余白 Y')('スライダー');\n" +
-                        "var bw = " + baseW.toFixed(4) + ";\n" +
-                        "var bh = " + baseH.toFixed(4) + ";\n" +
-                        "[Math.max(0, bw + px*2), Math.max(0, bh + py*2)];";
-
-                    sizeProp.expression = szExpr;
-                    sizeProp.expressionEnabled = true;
+            visitPropsWithExpression(L, function(prop){
+                var v = prop.valueAtTime(time, false);
+                prop.expression = "";
+                prop.expressionEnabled = false;
+                if (prop.isTimeVarying) {
+                    prop.setValueAtTime(time, v);
+                } else {
+                    prop.setValue(v);
                 }
-
-                // ---- Position はその瞬間の値を固定値にするだけ ----
-                if (posProp) {
-                    var psVal = posProp.valueAtTime(time, false); // 今の見た目（中心位置）
-
-                    posProp.expression = "";
-                    posProp.expressionEnabled = false;
-                    posProp.setValue(psVal);
-
-                    var posExpr =
-                        "[" + psVal[0].toFixed(4) + ", " +
-                               psVal[1].toFixed(4) + "];";
-
-                    posProp.expression = posExpr;
-                    posProp.expressionEnabled = true;
-                }
-
-                // ---- Roundness は「角丸」スライダーに追従 ----
-                if (roundProp) {
-                    roundProp.expression = "";
-                    roundProp.expressionEnabled = false;
-                    roundProp.expression = buildRoundnessExpr();
-                    roundProp.expressionEnabled = true;
-                }
-            }
+            });
         }
     }
 
@@ -780,6 +1033,8 @@
                 continue;
             }
 
+            var shrinkXVal = 0, shrinkYVal = 0;
+
             // 親子付けモードっぽいかどうか（親＝ターゲットなら parent モード）
             var mode = (L.parent === target) ? "parent" : "direct";
 
@@ -792,13 +1047,13 @@
 
                 // Size：元の AutoRect 式を再設定
                 if (props.size) {
-                    var szExpr = buildRectSizeExpr(mode, [target.name], includeExtents);
+                    var szExpr = buildRectSizeExpr(mode, [target.name], includeExtents, shrinkXVal, shrinkYVal);
                     applyExpression(props.size, szExpr);
                 }
 
                 // Position：元の AutoRect 式を再設定
                 if (props.pos) {
-                    var posExpr = buildRectPosExpr(mode, [target.name], includeExtents);
+                    var posExpr = buildRectPosExpr(mode, [target.name], includeExtents, shrinkXVal, shrinkYVal);
                     applyExpression(props.pos, posExpr);
                 }
 
@@ -847,11 +1102,11 @@
         var sw = pal.add("group");
         sw.orientation = "row";
         sw.alignment   = "fill";
-        var ckInsertAbove = sw.add("checkbox", undefined, "上に作成（逆挿入）");
+        var ckInsertAbove = sw.add("checkbox", undefined, "上に挿入");
         var ckParent      = sw.add("checkbox", undefined, "ターゲットに親子付け");
         var ckAdj         = sw.add("checkbox", undefined, "調整レイヤーにする");
         var ckMatte       = sw.add("checkbox", undefined, "トラックマット(アルファ)");
-        var ckAllowAuto   = sw.add("checkbox", undefined, "既存の枠にも再適用を許可");
+        var ckAllowAuto   = sw.add("checkbox", undefined, "重複許可");
 
         // オプション
         var opt = pal.add("panel", undefined, "オプション");
@@ -869,6 +1124,12 @@
         row1.add("statictext", undefined, "角丸");
         var etCorner = row1.add("edittext", undefined, String(loadSetting("corner", 0)));
         etCorner.characters = 6;
+
+        var rowUnit = opt.add("group");
+        rowUnit.add("statictext", undefined, "余白単位");
+        var ddPadUnit = rowUnit.add("dropdownlist", undefined, ["px", "%"]);
+        var padUnitDef = String(loadSetting("padUnit", "px"));
+        ddPadUnit.selection = (padUnitDef === "%") ? 1 : 0;
 
         var row2 = opt.add("group");
         var ckExt = row2.add("checkbox", undefined, "段落テキストの拡張境界を含める（Include Extents）");
@@ -894,6 +1155,40 @@
             loadSetting("fillR", 0.0),
             loadSetting("fillG", 0.4),
             loadSetting("fillB", 0.9)
+        ]);
+
+        var brPanel = opt.add("panel", undefined, "コーナーブラケット");
+        brPanel.orientation = "column";
+        brPanel.alignChildren = "left";
+        var brTop = brPanel.add("group");
+        var ckBracket = brTop.add("checkbox", undefined, "コーナーブラケット");
+        ckBracket.value = !!loadSetting("bracketOn", false);
+        brTop.add("statictext", undefined, "長さ");
+        var etBracketLen = brTop.add("edittext", undefined, String(loadSetting("bracketLen", 24)));
+        etBracketLen.characters = 5;
+        brTop.add("statictext", undefined, "スタイル");
+        var ddBracketStyle = brTop.add("dropdownlist", undefined, ["内向き","外向き"]);
+        var brStyleDef = num(loadSetting("bracketStyle", 0), 0);
+        ddBracketStyle.selection = (brStyleDef >= 1) ? 1 : 0;
+
+        var brRow = brPanel.add("group");
+        brRow.add("statictext", undefined, "角:");
+        var ckBrLT = brRow.add("checkbox", undefined, "左上");
+        var ckBrRT = brRow.add("checkbox", undefined, "右上");
+        var ckBrLB = brRow.add("checkbox", undefined, "左下");
+        var ckBrRB = brRow.add("checkbox", undefined, "右下");
+        ckBrLT.value = !!loadSetting("bracketLT", true);
+        ckBrRT.value = !!loadSetting("bracketRT", true);
+        ckBrLB.value = !!loadSetting("bracketLB", true);
+        ckBrRB.value = !!loadSetting("bracketRB", true);
+        var brStrokeRow = brPanel.add("group");
+        brStrokeRow.add("statictext", undefined, "線幅");
+        var etBracketStroke = brStrokeRow.add("edittext", undefined, String(loadSetting("bracketStrokeW", 4)));
+        etBracketStroke.characters = 4;
+        var brColorSwatch = createColorSwatch(brStrokeRow, "線色", [
+            loadSetting("bracketStrokeR", 0.2),
+            loadSetting("bracketStrokeG", 0.6),
+            loadSetting("bracketStrokeB", 1.0)
         ]);
 
         // マルチ選択モード
@@ -951,22 +1246,43 @@
             var padY   = num(etPadY.text, 8);
             var corner = clamp(num(etCorner.text, 0), 0, 100);
             var strokeW = Math.max(0, num(etStrokeW.text, 4));
-
+            var bracketOn = ckBracket.value;
+            var bracketLen = num(etBracketLen.text, 24);
+            var bracketStyle = ddBracketStyle.selection ? ddBracketStyle.selection.index : 0;
+            var bracketCorners = {lt: ckBrLT.value, rt: ckBrRT.value, lb: ckBrLB.value, rb: ckBrRB.value};
+            var bracketStrokeW = Math.max(0, num(etBracketStroke.text, 4));
+            var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
+            var usePct = (padUnit === "%");
+            var shrinkX = 0;
+            var shrinkY = 0;
             saveSetting("padX", padX);
             saveSetting("padY", padY);
             saveSetting("corner", corner);
+            saveSetting("padUnit", padUnit);
             saveSetting("includeExt", ckExt.value);
             saveSetting("strokeOn", ckStroke.value);
             saveSetting("strokeW", strokeW);
             saveSetting("fillOn", ckFill.value);
+            saveSetting("bracketOn", bracketOn);
+            saveSetting("bracketLen", bracketLen);
+            saveSetting("bracketStyle", bracketStyle);
+            saveSetting("bracketLT", ckBrLT.value);
+            saveSetting("bracketRT", ckBrRT.value);
+            saveSetting("bracketLB", ckBrLB.value);
+            saveSetting("bracketRB", ckBrRB.value);
+            saveSetting("bracketStrokeW", bracketStrokeW);
             var strokeC = strokeSwatch.getColor();
             var fillC   = fillSwatch.getColor();
+            var brStrokeC = brColorSwatch.getColor();
             saveSetting("strokeR", strokeC[0]);
             saveSetting("strokeG", strokeC[1]);
             saveSetting("strokeB", strokeC[2]);
             saveSetting("fillR", fillC[0]);
             saveSetting("fillG", fillC[1]);
             saveSetting("fillB", fillC[2]);
+            saveSetting("bracketStrokeR", brStrokeC[0]);
+            saveSetting("bracketStrokeG", brStrokeC[1]);
+            saveSetting("bracketStrokeB", brStrokeC[2]);
             saveSetting("insertAbove", ckInsertAbove.value);
             saveSetting("parentTo", ckParent.value);
             saveSetting("makeAdj", ckAdj.value);
@@ -983,6 +1299,16 @@
                 paddingX:      padX,
                 paddingY:      padY,
                 cornerRadius:  corner,
+                paddingUnit:   padUnit,
+                usePaddingPercent: usePct,
+                shrinkX:       shrinkX,
+                shrinkY:       shrinkY,
+                bracketOn:     bracketOn,
+                bracketLength: bracketLen,
+                bracketStyle:  bracketStyle,
+                bracketCorners: bracketCorners,
+                bracketStrokeWidth: bracketStrokeW,
+                bracketStrokeColor: brStrokeC,
                 strokeOn:      ckStroke.value,
                 strokeWidth:   strokeW,
                 strokeColor:   strokeC,
@@ -1044,12 +1370,55 @@
                     }
                     targets = filtered;
                     if (targets.length === 0) {
-                        alert("すでに矩形が存在するため、新規作成する対象がありません。\n「既存の枠にも再適用を許可」をONにすると上書き作成できます。");
+                        alert("すでに矩形が存在するため、新規作成する対象がありません。\n「重複許可」をONにすると上書き作成できます。");
                         return;
                     }
                 }
 
-                var created = createAutoRectForTargets(comp, targets, opt);
+                var created = [];
+                try {
+                    created = createAutoRectForTargets(comp, targets, opt);
+                } catch(err) {
+                    alert("作成中にエラーが発生しました: " + err.toString());
+                }
+
+                // 万一作成数が 0 の場合は、親子付けなし・ブラケットなしでリトライ
+                if (created.length === 0 && targets.length > 0) {
+                    var fallbackOpt = {};
+                    for (var k in opt) if (opt.hasOwnProperty(k)) fallbackOpt[k] = opt[k];
+                    fallbackOpt.parentTo = false;
+                    fallbackOpt.bracketOn = false;
+                    try {
+                        created = createAutoRectForTargets(comp, targets, fallbackOpt);
+                    } catch(err2) {
+                        alert("作成リトライ時にエラーが発生しました: " + err2.toString());
+                    }
+                }
+
+                if (created.length === 0) {
+                    // さらに最後の保険として、最初のターゲットに簡易矩形を作成
+                    try {
+                        var t0 = targets[0];
+                        var simple = comp.layers.addShape();
+                        simple.name = uniqueNameInComp(comp, "Rect_" + t0.name);
+                        simple.threeDLayer = t0.threeDLayer;
+                        var cts = simple.property("Contents");
+                        var g = cts.addProperty("ADBE Vector Group");
+                        g.name = "AutoRect";
+                        var r = g.property("Contents").addProperty("ADBE Vector Shape - Rect");
+                        r.property("Size").setValue([100,50]);
+                        r.property("Position").setValue([0,0]);
+                        ensureStrokeFill(g, {
+                            strokeOn:true, strokeWidth:4, strokeColor:[0.2,0.6,1],
+                            fillOn:false
+                        });
+                        simple.moveBefore(t0);
+                        created.push({shape:simple, target:t0});
+                    } catch(eSimple) {
+                        alert("何も作成されませんでした。最後の保険でも作成できませんでした: " + eSimple.toString());
+                    }
+                }
+
                 if (created.length === 0) {
                     alert("何も作成されませんでした。");
                 } else {
