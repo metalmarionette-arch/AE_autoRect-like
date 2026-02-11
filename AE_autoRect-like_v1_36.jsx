@@ -892,6 +892,30 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         return {stroke:stroke, fill:fill};
     }
 
+    function ensureCheckboxEffect(layer, name, checked) {
+        var fx = layer.property("ADBE Effect Parade");
+        if (!fx) return null;
+        var cb = fx.property(name);
+        if (!cb) {
+            cb = fx.addProperty("ADBE Checkbox Control");
+            cb.name = name;
+        }
+        cb.property("ADBE Checkbox Control-0001").setValue(checked ? 1 : 0);
+        return cb;
+    }
+
+    function getCheckboxEffectValue(layer, name, defVal) {
+        try {
+            var fx = layer.property("ADBE Effect Parade");
+            if (!fx) return !!defVal;
+            var cb = fx.property(name);
+            if (!cb) return !!defVal;
+            return cb.property("ADBE Checkbox Control-0001").value > 0.5;
+        } catch (e) {
+            return !!defVal;
+        }
+    }
+
     function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
@@ -908,6 +932,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         addSlider("線幅 調整", 0);
         addSlider("ブラケット線幅 調整", 0);
         addSlider("角丸", corner);
+        ensureCheckboxEffect(layer, "文字追従 有効", true);
     }
 
     function addBracketEffects(layer, opt) {
@@ -1103,6 +1128,7 @@ function createAutoRectForTargets(comp, targets, option) {
             var shape   = comp.layers.addShape();
             shape.name  = shpName;
             shape.threeDLayer = topTgt.threeDLayer;
+            try { shape.label = option.shapeLabel; } catch(eLabelAll) {}
 
             var contents = shape.property("Contents");
             var gp   = contents.addProperty("ADBE Vector Group");
@@ -1154,6 +1180,7 @@ function createAutoRectForTargets(comp, targets, option) {
                 var shape = comp.layers.addShape();
                 shape.name       = shpName;
                 shape.threeDLayer = tgt.threeDLayer;
+                try { shape.label = option.shapeLabel; } catch(eLabelEach) {}
 
                 var contents = shape.property("Contents");
                 var gp   = contents.addProperty("ADBE Vector Group");
@@ -1338,6 +1365,7 @@ function createAutoRectForTargets(comp, targets, option) {
                     prop.setValue(v);
                 }
             });
+            ensureCheckboxEffect(L, "文字追従 有効", false);
         }
     }
 
@@ -1429,9 +1457,24 @@ function createAutoRectForTargets(comp, targets, option) {
             }
 
             linkLayerTransformByExpr(L, target);
+            ensureCheckboxEffect(L, "文字追従 有効", true);
 
             // 固定ベース用エフェクトがあってもそのまま残す（現状は使っていない）
         }
+    }
+
+    function applyFollowStateFromEffects(ls, comp, time) {
+        if (!comp) return;
+        var toLock = [], toUnlock = [];
+        for (var i = 0; i < ls.length; i++) {
+            var L = ls[i];
+            if (!(L instanceof ShapeLayer)) continue;
+            var isFollow = getCheckboxEffectValue(L, "文字追従 有効", true);
+            if (isFollow) toUnlock.push(L);
+            else toLock.push(L);
+        }
+        if (toLock.length) lockWithPadding(toLock, time);
+        if (toUnlock.length) unlockPadding(toUnlock, comp);
     }
 
 
@@ -1462,6 +1505,7 @@ function createAutoRectForTargets(comp, targets, option) {
         var btCreate   = btnGrp.add("button", undefined, "作成 (Create)");
         var btLockPad  = btnGrp.add("button", undefined, "文字追従停止");
         var btUnlockPad = btnGrp.add("button", undefined, "文字追従復活");
+        var btApplyFollow = btnGrp.add("button", undefined, "追従チェック反映");
         var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
 
         // スイッチ列
@@ -1527,6 +1571,16 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("fillG", 0.4),
             loadSetting("fillB", 0.9)
         ]);
+
+        var rowLabel = opt.add("group");
+        rowLabel.add("statictext", undefined, "ラベルカラー");
+        var labelItems = [
+            "0: なし", "1", "2", "3", "4", "5", "6", "7", "8",
+            "9 (推奨)", "10", "11", "12", "13", "14", "15", "16"
+        ];
+        var ddLabelColor = rowLabel.add("dropdownlist", undefined, labelItems);
+        var labelDef = clamp(Math.round(num(loadSetting("shapeLabel", 9), 9)), 0, 16);
+        ddLabelColor.selection = labelDef;
 
         var brPanel = opt.add("panel", undefined, "コーナーブラケット");
         brPanel.orientation = "column";
@@ -1731,6 +1785,8 @@ function createAutoRectForTargets(comp, targets, option) {
             saveSetting("setMatte", ckMatte.value);
             saveSetting("allowAuto", ckAllowAuto.value);
             saveSetting("multiMode", rbAll.value ? "all" : "each");
+            var shapeLabel = ddLabelColor.selection ? ddLabelColor.selection.index : 9;
+            saveSetting("shapeLabel", shapeLabel);
 
             return {
                 insertAbove:   ckInsertAbove.value,
@@ -1760,6 +1816,7 @@ function createAutoRectForTargets(comp, targets, option) {
                 strokeColor:   strokeC,
                 fillOn:        ckFill.value,
                 fillColor:     fillC,
+                shapeLabel:    shapeLabel,
                 multiMode:     (rbAll.value ? "all" : "each"),
                 allowAutoOnAuto: ckAllowAuto.value
             };
@@ -1847,6 +1904,7 @@ function createAutoRectForTargets(comp, targets, option) {
                         var simple = comp.layers.addShape();
                         simple.name = uniqueNameInComp(comp, "Rect_" + t0.name);
                         simple.threeDLayer = t0.threeDLayer;
+                        try { simple.label = opt.shapeLabel; } catch(eLabelSimple) {}
                         var cts = simple.property("Contents");
                         var g = cts.addProperty("ADBE Vector Group");
                         g.name = "AutoRect";
@@ -1916,7 +1974,24 @@ function createAutoRectForTargets(comp, targets, option) {
             }
         };
 
-
+        btApplyFollow.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - 追従チェック反映");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (cand.length === 0) {
+                    alert("追従チェック反映の対象となる矩形レイヤーを選択してください。");
+                    return;
+                }
+                applyFollowStateFromEffects(cand, comp, comp.time);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
 
         btBake.onClick = function(){
             app.beginUndoGroup(SCRIPT_NAME + " - Bake");
