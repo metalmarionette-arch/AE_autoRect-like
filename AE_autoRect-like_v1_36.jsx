@@ -1337,6 +1337,134 @@ function createAutoRectForTargets(comp, targets, option) {
         }
     }
 
+    function clearAllKeys(prop) {
+        try {
+            while (prop.numKeys && prop.numKeys > 0) prop.removeKey(1);
+        } catch(e) {}
+    }
+
+    function copyKeyframedProperty(srcProp, dstProp) {
+        if (!srcProp || !dstProp) return;
+        try {
+            if (dstProp.canSetExpression) {
+                dstProp.expression = srcProp.expression;
+                dstProp.expressionEnabled = srcProp.expressionEnabled;
+            }
+        } catch(eExpr) {}
+
+        if (srcProp.numKeys && srcProp.numKeys > 0) {
+            clearAllKeys(dstProp);
+            for (var k = 1; k <= srcProp.numKeys; k++) {
+                var t = srcProp.keyTime(k);
+                var v = srcProp.keyValue(k);
+                dstProp.setValueAtTime(t, v);
+
+                try {
+                    dstProp.setInterpolationTypeAtKey(k, srcProp.keyInInterpolationType(k), srcProp.keyOutInterpolationType(k));
+                } catch(eInterp) {}
+                try {
+                    dstProp.setTemporalEaseAtKey(k, srcProp.keyInTemporalEase(k), srcProp.keyOutTemporalEase(k));
+                } catch(eEase) {}
+                try {
+                    dstProp.setTemporalAutoBezierAtKey(k, srcProp.keyTemporalAutoBezier(k));
+                } catch(eTA) {}
+                try {
+                    dstProp.setTemporalContinuousAtKey(k, srcProp.keyTemporalContinuous(k));
+                } catch(eTC) {}
+                try {
+                    dstProp.setRovingAtKey(k, srcProp.keyRoving(k));
+                } catch(eRoving) {}
+                try {
+                    if (srcProp.isSpatial) {
+                        dstProp.setSpatialAutoBezierAtKey(k, srcProp.keySpatialAutoBezier(k));
+                        dstProp.setSpatialContinuousAtKey(k, srcProp.keySpatialContinuous(k));
+                        dstProp.setSpatialTangentsAtKey(k, srcProp.keyInSpatialTangent(k), srcProp.keyOutSpatialTangent(k));
+                    }
+                } catch(eSpatial) {}
+            }
+        } else {
+            clearAllKeys(dstProp);
+            try {
+                if (dstProp.propertyValueType !== PropertyValueType.NO_VALUE) {
+                    dstProp.setValue(srcProp.value);
+                }
+            } catch(eSet) {}
+        }
+    }
+
+    function copyEffectParamByName(srcLayer, dstLayer, effectName) {
+        var srcFx = srcLayer.property("ADBE Effect Parade");
+        var dstFx = dstLayer.property("ADBE Effect Parade");
+        if (!srcFx || !dstFx) return;
+        var srcEf = srcFx.property(effectName);
+        if (!srcEf) return;
+        var dstEf = dstFx.property(effectName);
+        if (!dstEf) {
+            try {
+                dstEf = dstFx.addProperty(srcEf.matchName);
+                dstEf.name = effectName;
+            } catch(eAddEf) {
+                return;
+            }
+        }
+        if (srcEf.numProperties >= 1 && dstEf.numProperties >= 1) {
+            copyKeyframedProperty(srcEf.property(1), dstEf.property(1));
+        }
+    }
+
+    function copyVectorGraphicProps(srcLayer, dstLayer) {
+        var names = [
+            "ADBE Vector Stroke Width",
+            "ADBE Vector Stroke Color",
+            "ADBE Vector Stroke Opacity",
+            "ADBE Vector Fill Color",
+            "ADBE Vector Fill Opacity"
+        ];
+        function scan(srcGroup, dstGroup) {
+            if (!srcGroup || !dstGroup || srcGroup.numProperties === undefined || dstGroup.numProperties === undefined) return;
+            var n = Math.min(srcGroup.numProperties, dstGroup.numProperties);
+            for (var i = 1; i <= n; i++) {
+                var sp = srcGroup.property(i);
+                var dp = dstGroup.property(i);
+                if (!sp || !dp) continue;
+                if (sp.matchName !== dp.matchName) continue;
+                for (var j = 0; j < names.length; j++) {
+                    if (sp.matchName === names[j]) {
+                        copyKeyframedProperty(sp, dp);
+                        break;
+                    }
+                }
+                if (sp.numProperties > 0 && dp.numProperties > 0) scan(sp, dp);
+            }
+        }
+        scan(srcLayer.property("Contents"), dstLayer.property("Contents"));
+    }
+
+    function syncAutoRectParamsFromSource(sourceLayer, targetLayers) {
+        if (!sourceLayer || !targetLayers || targetLayers.length === 0) return;
+
+        var effectNames = [
+            "余白 X", "余白 Y", "余白%モード", "縮小 左右%", "縮小 上下%", "線幅 調整", "角丸",
+            "コーナーブラケット", "ブラケット長", "ブラケットスタイル", "ブラケット線幅", "ブラケット線幅 調整",
+            "ブラケット 左上", "ブラケット 右上", "ブラケット 左下", "ブラケット 右下",
+            "サイドライン", "サイドライン線幅", "サイドライン線幅 調整",
+            "サイドライン 上", "サイドライン 下", "サイドライン 左", "サイドライン 右",
+            "サイドライン 上 縮小%", "サイドライン 下 縮小%", "サイドライン 左 縮小%", "サイドライン 右 縮小%",
+            "文字追従 有効"
+        ];
+
+        for (var i = 0; i < targetLayers.length; i++) {
+            var dst = targetLayers[i];
+            if (!dst || dst === sourceLayer) continue;
+
+            for (var e = 0; e < effectNames.length; e++) {
+                copyEffectParamByName(sourceLayer, dst, effectNames[e]);
+            }
+            copyVectorGraphicProps(sourceLayer, dst);
+            try { dst.label = sourceLayer.label; } catch(eLabel) {}
+        }
+    }
+
     // 余白固定（シンプル版）
     // ・現在の見た目のサイズ＆位置をベースに固定
     // ・以降はテキストの変化には追従せず、余白スライダーだけ反映
@@ -1506,6 +1634,7 @@ function createAutoRectForTargets(comp, targets, option) {
         var btLockPad  = btnGrp.add("button", undefined, "文字追従停止");
         var btUnlockPad = btnGrp.add("button", undefined, "文字追従復活");
         var btApplyFollow = btnGrp.add("button", undefined, "追従チェック反映");
+        var btCopyParams = btnGrp.add("button", undefined, "最後選択の設定を他へ反映");
         var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
 
         // スイッチ列
@@ -1988,6 +2117,30 @@ function createAutoRectForTargets(comp, targets, option) {
                     return;
                 }
                 applyFollowStateFromEffects(cand, comp, comp.time);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
+
+        btCopyParams.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - 設定コピー");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (!cand || cand.length < 2) {
+                    alert("2つ以上の矩形レイヤーを選択してください。\n最後に選択したレイヤーの設定を他へ反映します。");
+                    return;
+                }
+                var src = cand[cand.length - 1];
+                var dst = [];
+                for (var i=0;i<cand.length;i++) {
+                    if (cand[i] !== src) dst.push(cand[i]);
+                }
+                syncAutoRectParamsFromSource(src, dst);
             } finally {
                 app.endUndoGroup();
             }
