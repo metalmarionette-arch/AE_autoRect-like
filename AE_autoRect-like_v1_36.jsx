@@ -141,12 +141,13 @@
         } catch(e){ return null; }
     }
 
-    function createColorSwatch(parent, label, initialRGB) {
+    function createColorSwatch(parent, label, initialRGB, tipText) {
         var grp = parent.add("group");
         grp.orientation = "row";
         grp.add("statictext", undefined, label);
         var sw = grp.add("button", undefined, "");
         sw.preferredSize = [40, 20];
+        if (tipText) sw.helpTip = tipText;
         var color = initialRGB || [0.5,0.5,0.5];
 
         function redraw(){
@@ -1694,12 +1695,12 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("strokeR", 0.2),
             loadSetting("strokeG", 0.6),
             loadSetting("strokeB", 1.0)
-        ]);
+        ], "矩形の線色を設定します。");
         var fillSwatch = createColorSwatch(row4, "塗り色", [
             loadSetting("fillR", 0.0),
             loadSetting("fillG", 0.4),
             loadSetting("fillB", 0.9)
-        ]);
+        ], "矩形の塗り色を設定します。");
 
         var rowLabel = opt.add("group");
         rowLabel.add("statictext", undefined, "ラベルカラー");
@@ -1743,7 +1744,7 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("bracketStrokeR", 0.2),
             loadSetting("bracketStrokeG", 0.6),
             loadSetting("bracketStrokeB", 1.0)
-        ]);
+        ], "コーナーブラケットの線色を設定します。");
 
         var sidePanel = opt.add("panel", undefined, "サイドライン");
         sidePanel.orientation = "column";
@@ -1770,7 +1771,7 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("sideLineStrokeR", 0.2),
             loadSetting("sideLineStrokeG", 0.6),
             loadSetting("sideLineStrokeB", 1.0)
-        ]);
+        ], "サイドラインの線色を設定します。");
 
 // マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
@@ -1789,6 +1790,48 @@ function createAutoRectForTargets(comp, targets, option) {
         ckAdj.value         = !!loadSetting("makeAdj",   false);
         ckMatte.value       = !!loadSetting("setMatte",  false);
         ckAllowAuto.value   = !!loadSetting("allowAuto", true);
+
+        // ツールチップ
+        btCreate.helpTip = "現在の選択レイヤーに追従するAutoRectを作成します。";
+        btLockPad.helpTip = "選択中のAutoRectの追従を停止し、現在の見た目で固定します。";
+        btUnlockPad.helpTip = "選択中のAutoRectの追従を復活します。";
+        btApplyFollow.helpTip = "各レイヤーの『文字追従 有効』チェックを読み取り、ON=追従復活 / OFF=追従停止 を適用します。";
+        btCopyParams.helpTip = "複数選択時、最後に選択したAutoRectの設定・アニメーションを他へコピーします。";
+        btBake.helpTip = "選択中のAutoRect式を現在時刻の値で焼き付け固定します。";
+
+        ckInsertAbove.helpTip = "ONで対象レイヤーの上に矩形を作成します（Shiftで一時反転）。";
+        ckAdj.helpTip = "作成した矩形を調整レイヤーにします。";
+        ckMatte.helpTip = "対象にアルファトラックマットを設定します。";
+        ckAllowAuto.helpTip = "既存Rect_があっても新規作成を許可します。";
+
+        padXRow.row.helpTip = "左右余白です。"; padXRow.edit.helpTip = padXRow.slider.helpTip = "左右余白(pxまたは%)。";
+        padYRow.row.helpTip = "上下余白です。"; padYRow.edit.helpTip = padYRow.slider.helpTip = "上下余白(pxまたは%)。";
+        cornerRow.row.helpTip = "角丸半径です。"; cornerRow.edit.helpTip = cornerRow.slider.helpTip = "角丸(0-100)。";
+        ddPadUnit.helpTip = "余白の単位を px / % で切り替えます。";
+        ckExt.helpTip = "段落テキストの拡張境界も矩形計算に含めます。";
+        ckStroke.helpTip = "矩形の線表示をON/OFFします。";
+        etStrokeW.helpTip = slStrokeW.helpTip = "線幅です。";
+        ckFill.helpTip = "矩形の塗り表示をON/OFFします。";
+        ddLabelColor.helpTip = "作成するシェイプレイヤーのラベル色です（既定: 9）。";
+
+        ckBracket.helpTip = "コーナーブラケットの表示ON/OFF。";
+        etBracketLen.helpTip = slBracketLen.helpTip = "ブラケットの長さ。";
+        ddBracketStyle.helpTip = "内向き / 外向き を切替。";
+        ckBrLT.helpTip = "左上ブラケットを表示。";
+        ckBrRT.helpTip = "右上ブラケットを表示。";
+        ckBrLB.helpTip = "左下ブラケットを表示。";
+        ckBrRB.helpTip = "右下ブラケットを表示。";
+        etBracketStroke.helpTip = slBracketStroke.helpTip = "ブラケット線幅。";
+
+        ckSideLine.helpTip = "サイドラインの表示ON/OFF。";
+        ckSideTop.helpTip = "上辺ラインを表示。";
+        ckSideBottom.helpTip = "下辺ラインを表示。";
+        ckSideLeft.helpTip = "左辺ラインを表示。";
+        ckSideRight.helpTip = "右辺ラインを表示。";
+        etSideLineStroke.helpTip = slSideLineStroke.helpTip = "サイドライン線幅。";
+
+        rbEach.helpTip = "各選択レイヤーごとに1つずつ作成。";
+        rbAll.helpTip = "選択全体を囲う1つを作成。";
 
         // 選択情報更新
         function refreshInfo(){
