@@ -71,9 +71,12 @@
         // トラックマットを設定できないレイヤーなら何もしない
         if (!isTrackMatteCapableLayer(target)) return;
 
-        // トラックマットは 2D レイヤーのみ有効
-        if (target.threeDLayer) target.threeDLayer = false;
-        if (matteLayer.threeDLayer) matteLayer.threeDLayer = false;
+        // 3Dレイヤーを2Dへ強制変換しない。
+        // 3D対象にトラックマットを適用しようとした場合は、対象レイヤーを維持してマット設定をスキップする。
+        if (target.threeDLayer || matteLayer.threeDLayer) {
+            alert("3Dレイヤーにはトラックマットを自動適用しません。\n対象・作成レイヤーの3D状態は維持します。\n必要な場合は手動で設定してください。");
+            return;
+        }
         matteLayer.adjustmentLayer = false; // マット用に調整レイヤー化は無効
 
         // 「レイヤー参照型のトラックマット」が使えるかどうか
