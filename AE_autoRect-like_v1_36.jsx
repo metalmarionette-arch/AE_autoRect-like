@@ -71,9 +71,12 @@
         // トラックマットを設定できないレイヤーなら何もしない
         if (!isTrackMatteCapableLayer(target)) return;
 
-        // トラックマットは 2D レイヤーのみ有効
-        if (target.threeDLayer) target.threeDLayer = false;
-        if (matteLayer.threeDLayer) matteLayer.threeDLayer = false;
+        // 3Dレイヤーを2Dへ強制変換しない。
+        // 3D対象にトラックマットを適用しようとした場合は、対象レイヤーを維持してマット設定をスキップする。
+        if (target.threeDLayer || matteLayer.threeDLayer) {
+            alert("3Dレイヤーにはトラックマットを自動適用しません。\n対象・作成レイヤーの3D状態は維持します。\n必要な場合は手動で設定してください。");
+            return;
+        }
         matteLayer.adjustmentLayer = false; // マット用に調整レイヤー化は無効
 
         // 「レイヤー参照型のトラックマット」が使えるかどうか
@@ -141,12 +144,13 @@
         } catch(e){ return null; }
     }
 
-    function createColorSwatch(parent, label, initialRGB) {
+    function createColorSwatch(parent, label, initialRGB, tipText) {
         var grp = parent.add("group");
         grp.orientation = "row";
         grp.add("statictext", undefined, label);
         var sw = grp.add("button", undefined, "");
         sw.preferredSize = [40, 20];
+        if (tipText) sw.helpTip = tipText;
         var color = initialRGB || [0.5,0.5,0.5];
 
         function redraw(){
@@ -192,10 +196,14 @@
     // -----------------------------
     function buildLayerRectDataFunc(includeExtentsStr) {
         var s = "";
+        s += "function layerPoint2D(T, x, y){\n";
+        s += "  try { return T.toComp([x, y, 0]); }\n";
+        s += "  catch(e) { return T.toComp([x, y]); }\n";
+        s += "}\n";
         s += "function layerRectData(L){\n";
         s += "  var r = L.sourceRectAtTime(time,"+includeExtentsStr+");\n";
-        s += "  var p1 = L.toComp([r.left, r.top]);\n";
-        s += "  var p2 = L.toComp([r.left + r.width, r.top + r.height]);\n";
+        s += "  var p1 = layerPoint2D(L, r.left, r.top);\n";
+        s += "  var p2 = layerPoint2D(L, r.left + r.width, r.top + r.height);\n";
         s += "  var l = Math.min(p1[0], p2[0]);\n";
         s += "  var t = Math.min(p1[1], p2[1]);\n";
         s += "  var rgt = Math.max(p1[0], p2[0]);\n";
@@ -208,8 +216,8 @@
         s += "        var sL = src.layer(i);\n";
         s += "        if (!sL || !sL.sourceRectAtTime) continue;\n";
         s += "        var rr = sL.sourceRectAtTime(time,"+includeExtentsStr+");\n";
-        s += "        var q1 = L.toComp(sL.toComp([rr.left, rr.top]));\n";
-        s += "        var q2 = L.toComp(sL.toComp([rr.left + rr.width, rr.top + rr.height]));\n";
+        s += "        var q1 = L.toComp(layerPoint2D(sL, rr.left, rr.top));\n";
+        s += "        var q2 = L.toComp(layerPoint2D(sL, rr.left + rr.width, rr.top + rr.height));\n";
         s += "        l = Math.min(l, q1[0], q2[0]);\n";
         s += "        t = Math.min(t, q1[1], q2[1]);\n";
         s += "        rgt = Math.max(rgt, q1[0], q2[0]);\n";
@@ -264,6 +272,7 @@
         s += "  else if (f < 0){ end = base * (1 - amt); }\n";
         s += "  return [start, end];\n";
         s += "}\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
         s += buildLayerRectDataFunc(inc);
 
         if (mode === "parent") {
@@ -361,7 +370,9 @@
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
+        s += "function toLayer(pt){ return to2D(fromComp(pt)); }\n";
+        s += "function toCompAuto(T, pt){ try { return T.toComp([pt[0], pt[1], 0]); } catch(e){ return T.toComp([pt[0], pt[1]]); } }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -392,7 +403,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  fromComp(L.toComp([cx, cy]));\n";
+            s += "  to2D(fromComp(toCompAuto(L, [cx, cy])));\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -415,7 +426,7 @@
             s += "  var bottomEdge = topPad + ey[1];\n";
             s += "  var cx = (leftEdge + rightEdge) / 2;\n";
             s += "  var cy = (topEdge + bottomEdge) / 2;\n";
-            s += "  fromComp(L.toComp([cx, cy]));\n";
+            s += "  to2D(fromComp(toCompAuto(L, [cx, cy])));\n";
             s += "}else{\n";
             s += "  [0,0];\n";
             s += "}\n";
@@ -614,7 +625,9 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
+        s += "function toLayer(pt){ return to2D(fromComp(pt)); }\n";
+        s += "function toCompAuto(T, pt){ try { return T.toComp([pt[0], pt[1], 0]); } catch(e){ return T.toComp([pt[0], pt[1]]); } }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -646,7 +659,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromComp(L.toComp(cornerLayer));\n";
+        s += "    to2D(fromComp(toCompAuto(L, cornerLayer)));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -669,7 +682,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var w = Math.max(0, rightEdge - leftEdge);\n";
         s += "    var h = Math.max(0, bottomEdge - topEdge);\n";
         s += "    var cornerLayer = [leftEdge + w*(" + cornerX + "), topEdge + h*(" + cornerY + ")];\n";
-        s += "    fromComp(L.toComp(cornerLayer));\n";
+        s += "    to2D(fromComp(toCompAuto(L, cornerLayer)));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -735,7 +748,9 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "  var py = (usePct > 0.5) ? r.height * (pySlider*0.01) : pySlider;\n";
         s += "  return [px, py];\n";
         s += "}\n";
-        s += "function toLayer(pt){ return fromComp(pt); }\n";
+        s += "function to2D(v){ return [v[0], v[1]]; }\n";
+        s += "function toLayer(pt){ return to2D(fromComp(pt)); }\n";
+        s += "function toCompAuto(T, pt){ try { return T.toComp([pt[0], pt[1], 0]); } catch(e){ return T.toComp([pt[0], pt[1]]); } }\n";
         s += "function localRect(L){ var r = L.sourceRectAtTime(time," + inc + "); return {l:r.left, t:r.top, w:r.width, h:r.height}; }\n";
         s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
         s += "function shrinkEdges(base, v){\n";
@@ -764,7 +779,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    fromComp(L.toComp(" + sidePoint + "));\n";
+        s += "    to2D(fromComp(toCompAuto(L, " + sidePoint + ")));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -784,7 +799,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         s += "    var rightEdge = leftPad + ex[1];\n";
         s += "    var topEdge = topPad + ey[0];\n";
         s += "    var bottomEdge = topPad + ey[1];\n";
-        s += "    fromComp(L.toComp(" + sidePoint + "));\n";
+        s += "    to2D(fromComp(toCompAuto(L, " + sidePoint + ")));\n";
         s += "  } else {\n";
         s += "    [0,0];\n";
         s += "  }\n";
@@ -881,6 +896,30 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         return {stroke:stroke, fill:fill};
     }
 
+    function ensureCheckboxEffect(layer, name, checked) {
+        var fx = layer.property("ADBE Effect Parade");
+        if (!fx) return null;
+        var cb = fx.property(name);
+        if (!cb) {
+            cb = fx.addProperty("ADBE Checkbox Control");
+            cb.name = name;
+        }
+        cb.property("ADBE Checkbox Control-0001").setValue(checked ? 1 : 0);
+        return cb;
+    }
+
+    function getCheckboxEffectValue(layer, name, defVal) {
+        try {
+            var fx = layer.property("ADBE Effect Parade");
+            if (!fx) return !!defVal;
+            var cb = fx.property(name);
+            if (!cb) return !!defVal;
+            return cb.property("ADBE Checkbox Control-0001").value > 0.5;
+        } catch (e) {
+            return !!defVal;
+        }
+    }
+
     function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
@@ -897,6 +936,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         addSlider("線幅 調整", 0);
         addSlider("ブラケット線幅 調整", 0);
         addSlider("角丸", corner);
+        ensureCheckboxEffect(layer, "文字追従 有効", true);
     }
 
     function addBracketEffects(layer, opt) {
@@ -1092,6 +1132,7 @@ function createAutoRectForTargets(comp, targets, option) {
             var shape   = comp.layers.addShape();
             shape.name  = shpName;
             shape.threeDLayer = topTgt.threeDLayer;
+            try { shape.label = option.shapeLabel; } catch(eLabelAll) {}
 
             var contents = shape.property("Contents");
             var gp   = contents.addProperty("ADBE Vector Group");
@@ -1143,6 +1184,7 @@ function createAutoRectForTargets(comp, targets, option) {
                 var shape = comp.layers.addShape();
                 shape.name       = shpName;
                 shape.threeDLayer = tgt.threeDLayer;
+                try { shape.label = option.shapeLabel; } catch(eLabelEach) {}
 
                 var contents = shape.property("Contents");
                 var gp   = contents.addProperty("ADBE Vector Group");
@@ -1299,6 +1341,134 @@ function createAutoRectForTargets(comp, targets, option) {
         }
     }
 
+    function clearAllKeys(prop) {
+        try {
+            while (prop.numKeys && prop.numKeys > 0) prop.removeKey(1);
+        } catch(e) {}
+    }
+
+    function copyKeyframedProperty(srcProp, dstProp) {
+        if (!srcProp || !dstProp) return;
+        try {
+            if (dstProp.canSetExpression) {
+                dstProp.expression = srcProp.expression;
+                dstProp.expressionEnabled = srcProp.expressionEnabled;
+            }
+        } catch(eExpr) {}
+
+        if (srcProp.numKeys && srcProp.numKeys > 0) {
+            clearAllKeys(dstProp);
+            for (var k = 1; k <= srcProp.numKeys; k++) {
+                var t = srcProp.keyTime(k);
+                var v = srcProp.keyValue(k);
+                dstProp.setValueAtTime(t, v);
+
+                try {
+                    dstProp.setInterpolationTypeAtKey(k, srcProp.keyInInterpolationType(k), srcProp.keyOutInterpolationType(k));
+                } catch(eInterp) {}
+                try {
+                    dstProp.setTemporalEaseAtKey(k, srcProp.keyInTemporalEase(k), srcProp.keyOutTemporalEase(k));
+                } catch(eEase) {}
+                try {
+                    dstProp.setTemporalAutoBezierAtKey(k, srcProp.keyTemporalAutoBezier(k));
+                } catch(eTA) {}
+                try {
+                    dstProp.setTemporalContinuousAtKey(k, srcProp.keyTemporalContinuous(k));
+                } catch(eTC) {}
+                try {
+                    dstProp.setRovingAtKey(k, srcProp.keyRoving(k));
+                } catch(eRoving) {}
+                try {
+                    if (srcProp.isSpatial) {
+                        dstProp.setSpatialAutoBezierAtKey(k, srcProp.keySpatialAutoBezier(k));
+                        dstProp.setSpatialContinuousAtKey(k, srcProp.keySpatialContinuous(k));
+                        dstProp.setSpatialTangentsAtKey(k, srcProp.keyInSpatialTangent(k), srcProp.keyOutSpatialTangent(k));
+                    }
+                } catch(eSpatial) {}
+            }
+        } else {
+            clearAllKeys(dstProp);
+            try {
+                if (dstProp.propertyValueType !== PropertyValueType.NO_VALUE) {
+                    dstProp.setValue(srcProp.value);
+                }
+            } catch(eSet) {}
+        }
+    }
+
+    function copyEffectParamByName(srcLayer, dstLayer, effectName) {
+        var srcFx = srcLayer.property("ADBE Effect Parade");
+        var dstFx = dstLayer.property("ADBE Effect Parade");
+        if (!srcFx || !dstFx) return;
+        var srcEf = srcFx.property(effectName);
+        if (!srcEf) return;
+        var dstEf = dstFx.property(effectName);
+        if (!dstEf) {
+            try {
+                dstEf = dstFx.addProperty(srcEf.matchName);
+                dstEf.name = effectName;
+            } catch(eAddEf) {
+                return;
+            }
+        }
+        if (srcEf.numProperties >= 1 && dstEf.numProperties >= 1) {
+            copyKeyframedProperty(srcEf.property(1), dstEf.property(1));
+        }
+    }
+
+    function copyVectorGraphicProps(srcLayer, dstLayer) {
+        var names = [
+            "ADBE Vector Stroke Width",
+            "ADBE Vector Stroke Color",
+            "ADBE Vector Stroke Opacity",
+            "ADBE Vector Fill Color",
+            "ADBE Vector Fill Opacity"
+        ];
+        function scan(srcGroup, dstGroup) {
+            if (!srcGroup || !dstGroup || srcGroup.numProperties === undefined || dstGroup.numProperties === undefined) return;
+            var n = Math.min(srcGroup.numProperties, dstGroup.numProperties);
+            for (var i = 1; i <= n; i++) {
+                var sp = srcGroup.property(i);
+                var dp = dstGroup.property(i);
+                if (!sp || !dp) continue;
+                if (sp.matchName !== dp.matchName) continue;
+                for (var j = 0; j < names.length; j++) {
+                    if (sp.matchName === names[j]) {
+                        copyKeyframedProperty(sp, dp);
+                        break;
+                    }
+                }
+                if (sp.numProperties > 0 && dp.numProperties > 0) scan(sp, dp);
+            }
+        }
+        scan(srcLayer.property("Contents"), dstLayer.property("Contents"));
+    }
+
+    function syncAutoRectParamsFromSource(sourceLayer, targetLayers) {
+        if (!sourceLayer || !targetLayers || targetLayers.length === 0) return;
+
+        var effectNames = [
+            "余白 X", "余白 Y", "余白%モード", "縮小 左右%", "縮小 上下%", "線幅 調整", "角丸",
+            "コーナーブラケット", "ブラケット長", "ブラケットスタイル", "ブラケット線幅", "ブラケット線幅 調整",
+            "ブラケット 左上", "ブラケット 右上", "ブラケット 左下", "ブラケット 右下",
+            "サイドライン", "サイドライン線幅", "サイドライン線幅 調整",
+            "サイドライン 上", "サイドライン 下", "サイドライン 左", "サイドライン 右",
+            "サイドライン 上 縮小%", "サイドライン 下 縮小%", "サイドライン 左 縮小%", "サイドライン 右 縮小%",
+            "文字追従 有効"
+        ];
+
+        for (var i = 0; i < targetLayers.length; i++) {
+            var dst = targetLayers[i];
+            if (!dst || dst === sourceLayer) continue;
+
+            for (var e = 0; e < effectNames.length; e++) {
+                copyEffectParamByName(sourceLayer, dst, effectNames[e]);
+            }
+            copyVectorGraphicProps(sourceLayer, dst);
+            try { dst.label = sourceLayer.label; } catch(eLabel) {}
+        }
+    }
+
     // 余白固定（シンプル版）
     // ・現在の見た目のサイズ＆位置をベースに固定
     // ・以降はテキストの変化には追従せず、余白スライダーだけ反映
@@ -1327,6 +1497,7 @@ function createAutoRectForTargets(comp, targets, option) {
                     prop.setValue(v);
                 }
             });
+            ensureCheckboxEffect(L, "文字追従 有効", false);
         }
     }
 
@@ -1418,9 +1589,24 @@ function createAutoRectForTargets(comp, targets, option) {
             }
 
             linkLayerTransformByExpr(L, target);
+            ensureCheckboxEffect(L, "文字追従 有効", true);
 
             // 固定ベース用エフェクトがあってもそのまま残す（現状は使っていない）
         }
+    }
+
+    function applyFollowStateFromEffects(ls, comp, time) {
+        if (!comp) return;
+        var toLock = [], toUnlock = [];
+        for (var i = 0; i < ls.length; i++) {
+            var L = ls[i];
+            if (!(L instanceof ShapeLayer)) continue;
+            var isFollow = getCheckboxEffectValue(L, "文字追従 有効", true);
+            if (isFollow) toUnlock.push(L);
+            else toLock.push(L);
+        }
+        if (toLock.length) lockWithPadding(toLock, time);
+        if (toUnlock.length) unlockPadding(toUnlock, comp);
     }
 
 
@@ -1451,6 +1637,8 @@ function createAutoRectForTargets(comp, targets, option) {
         var btCreate   = btnGrp.add("button", undefined, "作成 (Create)");
         var btLockPad  = btnGrp.add("button", undefined, "文字追従停止");
         var btUnlockPad = btnGrp.add("button", undefined, "文字追従復活");
+        var btApplyFollow = btnGrp.add("button", undefined, "追従チェック反映");
+        var btCopyParams = btnGrp.add("button", undefined, "最後選択の設定を他へ反映");
         var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
 
         // スイッチ列
@@ -1510,12 +1698,22 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("strokeR", 0.2),
             loadSetting("strokeG", 0.6),
             loadSetting("strokeB", 1.0)
-        ]);
+        ], "矩形の線色を設定します。");
         var fillSwatch = createColorSwatch(row4, "塗り色", [
             loadSetting("fillR", 0.0),
             loadSetting("fillG", 0.4),
             loadSetting("fillB", 0.9)
-        ]);
+        ], "矩形の塗り色を設定します。");
+
+        var rowLabel = opt.add("group");
+        rowLabel.add("statictext", undefined, "ラベルカラー");
+        var labelItems = [
+            "0: なし", "1", "2", "3", "4", "5", "6", "7", "8",
+            "9 (推奨)", "10", "11", "12", "13", "14", "15", "16"
+        ];
+        var ddLabelColor = rowLabel.add("dropdownlist", undefined, labelItems);
+        var labelDef = clamp(Math.round(num(loadSetting("shapeLabel", 9), 9)), 0, 16);
+        ddLabelColor.selection = labelDef;
 
         var brPanel = opt.add("panel", undefined, "コーナーブラケット");
         brPanel.orientation = "column";
@@ -1549,7 +1747,7 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("bracketStrokeR", 0.2),
             loadSetting("bracketStrokeG", 0.6),
             loadSetting("bracketStrokeB", 1.0)
-        ]);
+        ], "コーナーブラケットの線色を設定します。");
 
         var sidePanel = opt.add("panel", undefined, "サイドライン");
         sidePanel.orientation = "column";
@@ -1576,7 +1774,7 @@ function createAutoRectForTargets(comp, targets, option) {
             loadSetting("sideLineStrokeR", 0.2),
             loadSetting("sideLineStrokeG", 0.6),
             loadSetting("sideLineStrokeB", 1.0)
-        ]);
+        ], "サイドラインの線色を設定します。");
 
 // マルチ選択モード
         var pm = pal.add("panel", undefined, "複数レイヤー処理");
@@ -1595,6 +1793,48 @@ function createAutoRectForTargets(comp, targets, option) {
         ckAdj.value         = !!loadSetting("makeAdj",   false);
         ckMatte.value       = !!loadSetting("setMatte",  false);
         ckAllowAuto.value   = !!loadSetting("allowAuto", true);
+
+        // ツールチップ
+        btCreate.helpTip = "現在の選択レイヤーに追従するAutoRectを作成します。";
+        btLockPad.helpTip = "選択中のAutoRectの追従を停止し、現在の見た目で固定します。";
+        btUnlockPad.helpTip = "選択中のAutoRectの追従を復活します。";
+        btApplyFollow.helpTip = "各レイヤーの『文字追従 有効』チェックを読み取り、ON=追従復活 / OFF=追従停止 を適用します。";
+        btCopyParams.helpTip = "複数選択時、最後に選択したAutoRectの設定・アニメーションを他へコピーします。";
+        btBake.helpTip = "選択中のAutoRect式を現在時刻の値で焼き付け固定します。";
+
+        ckInsertAbove.helpTip = "ONで対象レイヤーの上に矩形を作成します（Shiftで一時反転）。";
+        ckAdj.helpTip = "作成した矩形を調整レイヤーにします。";
+        ckMatte.helpTip = "対象にアルファトラックマットを設定します。";
+        ckAllowAuto.helpTip = "既存Rect_があっても新規作成を許可します。";
+
+        padXRow.row.helpTip = "左右余白です。"; padXRow.edit.helpTip = padXRow.slider.helpTip = "左右余白(pxまたは%)。";
+        padYRow.row.helpTip = "上下余白です。"; padYRow.edit.helpTip = padYRow.slider.helpTip = "上下余白(pxまたは%)。";
+        cornerRow.row.helpTip = "角丸半径です。"; cornerRow.edit.helpTip = cornerRow.slider.helpTip = "角丸(0-100)。";
+        ddPadUnit.helpTip = "余白の単位を px / % で切り替えます。";
+        ckExt.helpTip = "段落テキストの拡張境界も矩形計算に含めます。";
+        ckStroke.helpTip = "矩形の線表示をON/OFFします。";
+        etStrokeW.helpTip = slStrokeW.helpTip = "線幅です。";
+        ckFill.helpTip = "矩形の塗り表示をON/OFFします。";
+        ddLabelColor.helpTip = "作成するシェイプレイヤーのラベル色です（既定: 9）。";
+
+        ckBracket.helpTip = "コーナーブラケットの表示ON/OFF。";
+        etBracketLen.helpTip = slBracketLen.helpTip = "ブラケットの長さ。";
+        ddBracketStyle.helpTip = "内向き / 外向き を切替。";
+        ckBrLT.helpTip = "左上ブラケットを表示。";
+        ckBrRT.helpTip = "右上ブラケットを表示。";
+        ckBrLB.helpTip = "左下ブラケットを表示。";
+        ckBrRB.helpTip = "右下ブラケットを表示。";
+        etBracketStroke.helpTip = slBracketStroke.helpTip = "ブラケット線幅。";
+
+        ckSideLine.helpTip = "サイドラインの表示ON/OFF。";
+        ckSideTop.helpTip = "上辺ラインを表示。";
+        ckSideBottom.helpTip = "下辺ラインを表示。";
+        ckSideLeft.helpTip = "左辺ラインを表示。";
+        ckSideRight.helpTip = "右辺ラインを表示。";
+        etSideLineStroke.helpTip = slSideLineStroke.helpTip = "サイドライン線幅。";
+
+        rbEach.helpTip = "各選択レイヤーごとに1つずつ作成。";
+        rbAll.helpTip = "選択全体を囲う1つを作成。";
 
         // 選択情報更新
         function refreshInfo(){
@@ -1720,6 +1960,8 @@ function createAutoRectForTargets(comp, targets, option) {
             saveSetting("setMatte", ckMatte.value);
             saveSetting("allowAuto", ckAllowAuto.value);
             saveSetting("multiMode", rbAll.value ? "all" : "each");
+            var shapeLabel = ddLabelColor.selection ? ddLabelColor.selection.index : 9;
+            saveSetting("shapeLabel", shapeLabel);
 
             return {
                 insertAbove:   ckInsertAbove.value,
@@ -1749,6 +1991,7 @@ function createAutoRectForTargets(comp, targets, option) {
                 strokeColor:   strokeC,
                 fillOn:        ckFill.value,
                 fillColor:     fillC,
+                shapeLabel:    shapeLabel,
                 multiMode:     (rbAll.value ? "all" : "each"),
                 allowAutoOnAuto: ckAllowAuto.value
             };
@@ -1836,6 +2079,7 @@ function createAutoRectForTargets(comp, targets, option) {
                         var simple = comp.layers.addShape();
                         simple.name = uniqueNameInComp(comp, "Rect_" + t0.name);
                         simple.threeDLayer = t0.threeDLayer;
+                        try { simple.label = opt.shapeLabel; } catch(eLabelSimple) {}
                         var cts = simple.property("Contents");
                         var g = cts.addProperty("ADBE Vector Group");
                         g.name = "AutoRect";
@@ -1905,7 +2149,48 @@ function createAutoRectForTargets(comp, targets, option) {
             }
         };
 
+        btApplyFollow.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - 追従チェック反映");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (cand.length === 0) {
+                    alert("追従チェック反映の対象となる矩形レイヤーを選択してください。");
+                    return;
+                }
+                applyFollowStateFromEffects(cand, comp, comp.time);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
 
+        btCopyParams.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - 設定コピー");
+            try {
+                var comp = app.project.activeItem;
+                if (!comp || !(comp instanceof CompItem)) {
+                    alert("コンポジションをアクティブにしてください。");
+                    return;
+                }
+                var cand = pickCandidateShapesFromSelection(comp);
+                if (!cand || cand.length < 2) {
+                    alert("2つ以上の矩形レイヤーを選択してください。\n最後に選択したレイヤーの設定を他へ反映します。");
+                    return;
+                }
+                var src = cand[cand.length - 1];
+                var dst = [];
+                for (var i=0;i<cand.length;i++) {
+                    if (cand[i] !== src) dst.push(cand[i]);
+                }
+                syncAutoRectParamsFromSource(src, dst);
+            } finally {
+                app.endUndoGroup();
+            }
+        };
 
         btBake.onClick = function(){
             app.beginUndoGroup(SCRIPT_NAME + " - Bake");
