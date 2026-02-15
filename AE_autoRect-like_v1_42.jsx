@@ -13,8 +13,42 @@
 ==============================================================================*/
 (function (thisObj) {
     var SCRIPT_NAME = "オート矩形ツール";
-    var SET_NS      = "AutoRectUI_v1";
     var MATTE_TYPE  = TrackMatteType.ALPHA;
+    var PRESET_FILE = "AE_autoRect-like_presets.json";
+    var DEFAULT_UI = {
+        padX: 16,
+        padY: 8,
+        corner: 0,
+        padUnit: "px",
+        includeExt: true,
+        strokeOn: true,
+        strokeW: 4,
+        fillOn: true,
+        strokeColor: [0.2, 0.6, 1.0],
+        fillColor: [0.0, 0.4, 0.9],
+        shapeLabel: 9,
+        bracketOn: false,
+        bracketLen: 24,
+        bracketStyle: 0,
+        bracketLT: true,
+        bracketRT: true,
+        bracketLB: true,
+        bracketRB: true,
+        bracketStrokeW: 4,
+        bracketStrokeColor: [0.2, 0.6, 1.0],
+        sideLineOn: false,
+        sideLineTop: true,
+        sideLineBottom: true,
+        sideLineLeft: true,
+        sideLineRight: true,
+        sideLineStrokeW: 4,
+        sideLineStrokeColor: [0.2, 0.6, 1.0],
+        multiMode: "each",
+        insertAbove: false,
+        makeAdj: false,
+        setMatte: false,
+        allowAuto: true
+    };
 
     // -----------------------------
     // ユーティリティ
@@ -172,20 +206,77 @@
         };
     }
 
-    function saveSetting(key, val){
-        try { app.settings.saveSetting(SET_NS, key, String(val)); } catch(e){}
-    }
-    function loadSetting(key, def){
+    function _jsonStringify(obj) {
         try {
-            if (app.settings.haveSetting(SET_NS, key)) {
-                var v = app.settings.getSetting(SET_NS, key);
-                if (v === "true")  return true;
-                if (v === "false") return false;
-                var f = parseFloat(v);
-                return (isFinite(f) && String(f) === v) ? f : v;
+            if (typeof JSON !== "undefined" && JSON && JSON.stringify) {
+                return JSON.stringify(obj, null, 2);
             }
-        } catch(e){}
-        return def;
+        } catch (e) {}
+        function esc(s){
+            return String(s)
+                .replace(/\\/g,"\\\\")
+                .replace(/"/g,'\\"')
+                .replace(/\r?\n/g,"\\n");
+        }
+        function ser(x){
+            if (x === null) return "null";
+            var t = typeof x;
+            if (t === "string")  return '"' + esc(x) + '"';
+            if (t === "number")  return isFinite(x) ? String(x) : "null";
+            if (t === "boolean") return x ? "true" : "false";
+            if (x instanceof Array) { var a=[]; for (var i=0;i<x.length;i++) a.push(ser(x[i])); return "["+a.join(",")+"]"; }
+            if (t === "object")  { var kv=[]; for (var k in x) if (x.hasOwnProperty(k)) kv.push('"'+esc(k)+'":'+ser(x[k])); return "{"+kv.join(",")+"}"; }
+            return "null";
+        }
+        return ser(obj);
+    }
+
+    function _jsonParse(text) {
+        try { if (typeof JSON !== "undefined" && JSON && JSON.parse) return JSON.parse(text); } catch(e){}
+        try { return eval("(" + text + ")"); } catch(e2){ return []; }
+    }
+
+    function getPresetFilePath() {
+        try {
+            var scriptFile = new File($.fileName);
+            if (scriptFile && scriptFile.parent && scriptFile.parent.exists) {
+                return scriptFile.parent.fullName + "/" + PRESET_FILE;
+            }
+        } catch (e) {}
+        var basePath = (Folder.userData && Folder.userData.fsName) ? Folder.userData.fsName : Folder.userData.fullName;
+        var targetDir = basePath + "/Adobe/After Effects/AutoRectLike";
+        var folder = new Folder(targetDir);
+        if (!folder.exists) folder.create();
+        return folder.fullName + "/" + PRESET_FILE;
+    }
+
+    function loadPresets() {
+        var presets = [];
+        try {
+            var f = new File(getPresetFilePath());
+            if (f.exists && f.open("r")) {
+                var content = f.read();
+                f.close();
+                var arr = _jsonParse(content);
+                if (arr instanceof Array) presets = arr;
+            }
+        } catch (e) {}
+        return presets;
+    }
+
+    function savePresets(presets) {
+        try {
+            var f = new File(getPresetFilePath());
+            if (f.parent && !f.parent.exists) f.parent.create();
+            if (f.open("w")) {
+                f.encoding = "UTF-8";
+                f.lineFeed = "Unix";
+                f.write(_jsonStringify(presets || []));
+                f.close();
+                return true;
+            }
+        } catch (e) {}
+        return false;
     }
 
     // -----------------------------
@@ -843,6 +934,16 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
                "Math.max(0, Math.min(100, v));";
     }
 
+
+    function matchParentTransform(dstLayer, srcLayer) {
+        if (!dstLayer || !srcLayer) return;
+        try {
+            if (srcLayer.parent) {
+                dstLayer.parent = srcLayer.parent;
+            }
+        } catch (e) {}
+    }
+
     function linkLayerTransformByExpr(dstLayer, srcLayer) {
         // 親子付けオフ時の追従用
         var dT = dstLayer.transform,
@@ -1151,6 +1252,7 @@ function createAutoRectForTargets(comp, targets, option) {
             addCornerBrackets(shape, "multi", names, option, option.includeExtents);
             addSideLines(shape, "multi", names, option, option.includeExtents);
 
+            matchParentTransform(shape, topTgt);
             linkLayerTransformByExpr(shape, topTgt);
 
             shape.adjustmentLayer = !!option.makeAdjustment;
@@ -1195,6 +1297,7 @@ function createAutoRectForTargets(comp, targets, option) {
                 var modeName = "direct";
                 rect.property("Size").expression      = buildRectSizeExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
                 rect.property("Position").expression  = buildRectPosExpr(modeName, [tgt.name], option.includeExtents, option.shrinkX, option.shrinkY);
+                matchParentTransform(shape, tgt);
                 linkLayerTransformByExpr(shape, tgt);
                 rect.property("Roundness").expression = buildRoundnessExpr();
 
@@ -1656,7 +1759,7 @@ function createAutoRectForTargets(comp, targets, option) {
         function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) {
             var row = parent.add("group");
             row.add("statictext", undefined, label);
-            var et = row.add("edittext", undefined, String(loadSetting(settingKey, defVal)));
+            var et = row.add("edittext", undefined, String(defVal));
             et.characters = chars || 6;
             var sl = row.add("slider", undefined, num(et.text, defVal), minVal, maxVal);
             sl.preferredSize = [160, 18];
@@ -1673,33 +1776,33 @@ function createAutoRectForTargets(comp, targets, option) {
         var rowUnit = opt.add("group");
         rowUnit.add("statictext", undefined, "余白単位");
         var ddPadUnit = rowUnit.add("dropdownlist", undefined, ["px", "%"]);
-        var padUnitDef = String(loadSetting("padUnit", "px"));
+        var padUnitDef = DEFAULT_UI.padUnit;
         ddPadUnit.selection = (padUnitDef === "%") ? 1 : 0;
 
         var row2 = opt.add("group");
         var ckExt = row2.add("checkbox", undefined, "段落テキストの拡張境界を含める（Include Extents）");
-        ckExt.value = !!loadSetting("includeExt", true);
+        ckExt.value = DEFAULT_UI.includeExt;
 
         var row3 = opt.add("group");
         var ckStroke = row3.add("checkbox", undefined, "線（Stroke）");
-        ckStroke.value = !!loadSetting("strokeOn", true);
+        ckStroke.value = DEFAULT_UI.strokeOn;
         var strokeRow = addSliderRow(opt, "線幅", "strokeW", 4, 0, 50, 4);
         var etStrokeW = strokeRow.edit;
         var slStrokeW = strokeRow.slider;
 
         var row4 = opt.add("group");
         var ckFill = row4.add("checkbox", undefined, "塗り（Fill）");
-        ckFill.value = !!loadSetting("fillOn", true);
+        ckFill.value = DEFAULT_UI.fillOn;
 
         var strokeSwatch = createColorSwatch(row4, "線色", [
-            loadSetting("strokeR", 0.2),
-            loadSetting("strokeG", 0.6),
-            loadSetting("strokeB", 1.0)
+            DEFAULT_UI.strokeColor[0],
+            DEFAULT_UI.strokeColor[1],
+            DEFAULT_UI.strokeColor[2]
         ], "矩形の線色を設定します。");
         var fillSwatch = createColorSwatch(row4, "塗り色", [
-            loadSetting("fillR", 0.0),
-            loadSetting("fillG", 0.4),
-            loadSetting("fillB", 0.9)
+            DEFAULT_UI.fillColor[0],
+            DEFAULT_UI.fillColor[1],
+            DEFAULT_UI.fillColor[2]
         ], "矩形の塗り色を設定します。");
 
         var rowLabel = opt.add("group");
@@ -1709,7 +1812,7 @@ function createAutoRectForTargets(comp, targets, option) {
             "9 (推奨)", "10", "11", "12", "13", "14", "15", "16"
         ];
         var ddLabelColor = rowLabel.add("dropdownlist", undefined, labelItems);
-        var labelDef = clamp(Math.round(num(loadSetting("shapeLabel", 9), 9)), 0, 16);
+        var labelDef = clamp(Math.round(num(DEFAULT_UI.shapeLabel, 9)), 0, 16);
         ddLabelColor.selection = labelDef;
 
         var brPanel = opt.add("panel", undefined, "コーナーブラケット");
@@ -1717,14 +1820,14 @@ function createAutoRectForTargets(comp, targets, option) {
         brPanel.alignChildren = "left";
         var brTop = brPanel.add("group");
         var ckBracket = brTop.add("checkbox", undefined, "コーナーブラケット");
-        ckBracket.value = !!loadSetting("bracketOn", false);
+        ckBracket.value = DEFAULT_UI.bracketOn;
         var brLenRow = addSliderRow(brPanel, "長さ", "bracketLen", 24, 0, 300, 5);
         var etBracketLen = brLenRow.edit;
         var slBracketLen = brLenRow.slider;
         var brStyleRow = brPanel.add("group");
         brStyleRow.add("statictext", undefined, "スタイル");
         var ddBracketStyle = brStyleRow.add("dropdownlist", undefined, ["内向き","外向き"]);
-        var brStyleDef = num(loadSetting("bracketStyle", 0), 0);
+        var brStyleDef = num(DEFAULT_UI.bracketStyle, 0);
         ddBracketStyle.selection = (brStyleDef >= 1) ? 1 : 0;
 
         var brRow = brPanel.add("group");
@@ -1733,17 +1836,17 @@ function createAutoRectForTargets(comp, targets, option) {
         var ckBrRT = brRow.add("checkbox", undefined, "右上");
         var ckBrLB = brRow.add("checkbox", undefined, "左下");
         var ckBrRB = brRow.add("checkbox", undefined, "右下");
-        ckBrLT.value = !!loadSetting("bracketLT", true);
-        ckBrRT.value = !!loadSetting("bracketRT", true);
-        ckBrLB.value = !!loadSetting("bracketLB", true);
-        ckBrRB.value = !!loadSetting("bracketRB", true);
+        ckBrLT.value = DEFAULT_UI.bracketLT;
+        ckBrRT.value = DEFAULT_UI.bracketRT;
+        ckBrLB.value = DEFAULT_UI.bracketLB;
+        ckBrRB.value = DEFAULT_UI.bracketRB;
         var brStrokeRow = addSliderRow(brPanel, "線幅", "bracketStrokeW", 4, 0, 50, 4);
         var etBracketStroke = brStrokeRow.edit;
         var slBracketStroke = brStrokeRow.slider;
         var brColorSwatch = createColorSwatch(brStrokeRow.row, "線色", [
-            loadSetting("bracketStrokeR", 0.2),
-            loadSetting("bracketStrokeG", 0.6),
-            loadSetting("bracketStrokeB", 1.0)
+            DEFAULT_UI.bracketStrokeColor[0],
+            DEFAULT_UI.bracketStrokeColor[1],
+            DEFAULT_UI.bracketStrokeColor[2]
         ], "コーナーブラケットの線色を設定します。");
 
         var sidePanel = opt.add("panel", undefined, "サイドライン");
@@ -1751,7 +1854,7 @@ function createAutoRectForTargets(comp, targets, option) {
         sidePanel.alignChildren = "left";
         var sideTop = sidePanel.add("group");
         var ckSideLine = sideTop.add("checkbox", undefined, "サイドライン");
-        ckSideLine.value = !!loadSetting("sideLineOn", false);
+        ckSideLine.value = DEFAULT_UI.sideLineOn;
 
         var sideRow = sidePanel.add("group");
         sideRow.add("statictext", undefined, "方向:");
@@ -1759,18 +1862,18 @@ function createAutoRectForTargets(comp, targets, option) {
         var ckSideBottom = sideRow.add("checkbox", undefined, "下");
         var ckSideLeft = sideRow.add("checkbox", undefined, "左");
         var ckSideRight = sideRow.add("checkbox", undefined, "右");
-        ckSideTop.value = !!loadSetting("sideLineTop", true);
-        ckSideBottom.value = !!loadSetting("sideLineBottom", true);
-        ckSideLeft.value = !!loadSetting("sideLineLeft", true);
-        ckSideRight.value = !!loadSetting("sideLineRight", true);
+        ckSideTop.value = DEFAULT_UI.sideLineTop;
+        ckSideBottom.value = DEFAULT_UI.sideLineBottom;
+        ckSideLeft.value = DEFAULT_UI.sideLineLeft;
+        ckSideRight.value = DEFAULT_UI.sideLineRight;
 
         var sideStrokeRow = addSliderRow(sidePanel, "線幅", "sideLineStrokeW", 4, 0, 50, 4);
         var etSideLineStroke = sideStrokeRow.edit;
         var slSideLineStroke = sideStrokeRow.slider;
         var sideColorSwatch = createColorSwatch(sideStrokeRow.row, "線色", [
-            loadSetting("sideLineStrokeR", 0.2),
-            loadSetting("sideLineStrokeG", 0.6),
-            loadSetting("sideLineStrokeB", 1.0)
+            DEFAULT_UI.sideLineStrokeColor[0],
+            DEFAULT_UI.sideLineStrokeColor[1],
+            DEFAULT_UI.sideLineStrokeColor[2]
         ], "サイドラインの線色を設定します。");
 
 // マルチ選択モード
@@ -1781,15 +1884,71 @@ function createAutoRectForTargets(comp, targets, option) {
         var rbEach = pm.add("radiobutton", undefined, "各レイヤーに1つずつ作成");
         var rbAll  = pm.add("radiobutton", undefined, "選択全体を囲う1つを作成");
 
-        var multiDef = String(loadSetting("multiMode", "each"));
+        var multiDef = DEFAULT_UI.multiMode;
         rbAll.value  = (multiDef === "all");
         rbEach.value = !rbAll.value;
 
         // チェックの既定値
-        ckInsertAbove.value = !!loadSetting("insertAbove", false);
-        ckAdj.value         = !!loadSetting("makeAdj",   false);
-        ckMatte.value       = !!loadSetting("setMatte",  false);
-        ckAllowAuto.value   = !!loadSetting("allowAuto", true);
+        ckInsertAbove.value = DEFAULT_UI.insertAbove;
+        ckAdj.value         = DEFAULT_UI.makeAdj;
+        ckMatte.value       = DEFAULT_UI.setMatte;
+        ckAllowAuto.value   = DEFAULT_UI.allowAuto;
+
+        var presets = loadPresets();
+        var presetPanel = pal.add("panel", undefined, "プリセット");
+        presetPanel.orientation = "row";
+        presetPanel.alignChildren = "left";
+        var ddPreset = presetPanel.add("dropdownlist", undefined, []);
+        ddPreset.preferredSize = [220, 24];
+        var btPresetSave = presetPanel.add("button", undefined, "Save");
+        var btPresetLoad = presetPanel.add("button", undefined, "Load");
+        var btPresetDelete = presetPanel.add("button", undefined, "Delete");
+
+        function refreshPresetList(selectIndex) {
+            ddPreset.removeAll();
+            for (var i=0; i<presets.length; i++) ddPreset.add("item", presets[i].name || ("Preset_" + (i+1)));
+            if (presets.length === 0) return;
+            var idx = (typeof selectIndex === "number") ? selectIndex : (presets.length - 1);
+            idx = Math.max(0, Math.min(presets.length - 1, idx));
+            ddPreset.selection = idx;
+        }
+
+        function getCurrentUIValues() {
+            return {
+                padX: num(etPadX.text, DEFAULT_UI.padX),
+                padY: num(etPadY.text, DEFAULT_UI.padY),
+                corner: num(etCorner.text, DEFAULT_UI.corner),
+                padUnit: ddPadUnit.selection ? ddPadUnit.selection.text : DEFAULT_UI.padUnit,
+                includeExt: !!ckExt.value,
+                strokeOn: !!ckStroke.value,
+                strokeW: num(etStrokeW.text, DEFAULT_UI.strokeW),
+                fillOn: !!ckFill.value,
+                strokeColor: strokeSwatch.getColor(),
+                fillColor: fillSwatch.getColor(),
+                shapeLabel: ddLabelColor.selection ? ddLabelColor.selection.index : DEFAULT_UI.shapeLabel,
+                bracketOn: !!ckBracket.value,
+                bracketLen: num(etBracketLen.text, DEFAULT_UI.bracketLen),
+                bracketStyle: ddBracketStyle.selection ? ddBracketStyle.selection.index : DEFAULT_UI.bracketStyle,
+                bracketLT: !!ckBrLT.value,
+                bracketRT: !!ckBrRT.value,
+                bracketLB: !!ckBrLB.value,
+                bracketRB: !!ckBrRB.value,
+                bracketStrokeW: num(etBracketStroke.text, DEFAULT_UI.bracketStrokeW),
+                bracketStrokeColor: brColorSwatch.getColor(),
+                sideLineOn: !!ckSideLine.value,
+                sideLineTop: !!ckSideTop.value,
+                sideLineBottom: !!ckSideBottom.value,
+                sideLineLeft: !!ckSideLeft.value,
+                sideLineRight: !!ckSideRight.value,
+                sideLineStrokeW: num(etSideLineStroke.text, DEFAULT_UI.sideLineStrokeW),
+                sideLineStrokeColor: sideColorSwatch.getColor(),
+                multiMode: rbAll.value ? "all" : "each",
+                insertAbove: !!ckInsertAbove.value,
+                makeAdj: !!ckAdj.value,
+                setMatte: !!ckMatte.value,
+                allowAuto: !!ckAllowAuto.value
+            };
+        }
 
         // ツールチップ
         btCreate.helpTip = "現在の選択レイヤーに追従するAutoRectを作成します。";
@@ -1876,15 +2035,101 @@ function createAutoRectForTargets(comp, targets, option) {
             editText.onChange = syncFromEdit;
             slider.onChanging = syncFromSlider;
             syncFromEdit();
+            return syncFromEdit;
         }
 
-        bindSlider(padXRow.edit, padXRow.slider, 0, 300);
-        bindSlider(padYRow.edit, padYRow.slider, 0, 300);
-        bindSlider(cornerRow.edit, cornerRow.slider, 0, 100);
-        bindSlider(etStrokeW, slStrokeW, 0, 50);
-        bindSlider(etBracketLen, slBracketLen, 0, 300);
-        bindSlider(etBracketStroke, slBracketStroke, 0, 50);
-        bindSlider(etSideLineStroke, slSideLineStroke, 0, 50);
+        var syncPadX = bindSlider(padXRow.edit, padXRow.slider, 0, 300);
+        var syncPadY = bindSlider(padYRow.edit, padYRow.slider, 0, 300);
+        var syncCorner = bindSlider(cornerRow.edit, cornerRow.slider, 0, 100);
+        var syncStrokeW = bindSlider(etStrokeW, slStrokeW, 0, 50);
+        var syncBracketLen = bindSlider(etBracketLen, slBracketLen, 0, 300);
+        var syncBracketStroke = bindSlider(etBracketStroke, slBracketStroke, 0, 50);
+        var syncSideStroke = bindSlider(etSideLineStroke, slSideLineStroke, 0, 50);
+
+        function applyUIValues(v) {
+            if (!v) return;
+            etPadX.text = String(num(v.padX, DEFAULT_UI.padX)); syncPadX();
+            etPadY.text = String(num(v.padY, DEFAULT_UI.padY)); syncPadY();
+            etCorner.text = String(num(v.corner, DEFAULT_UI.corner)); syncCorner();
+            ddPadUnit.selection = (String(v.padUnit || DEFAULT_UI.padUnit) === "%") ? 1 : 0;
+            ckExt.value = !!v.includeExt;
+            ckStroke.value = !!v.strokeOn;
+            etStrokeW.text = String(num(v.strokeW, DEFAULT_UI.strokeW)); syncStrokeW();
+            ckFill.value = !!v.fillOn;
+            strokeSwatch.setColor(v.strokeColor || DEFAULT_UI.strokeColor);
+            fillSwatch.setColor(v.fillColor || DEFAULT_UI.fillColor);
+            var lb = clamp(Math.round(num(v.shapeLabel, DEFAULT_UI.shapeLabel)), 0, 16);
+            ddLabelColor.selection = lb;
+
+            ckBracket.value = !!v.bracketOn;
+            etBracketLen.text = String(num(v.bracketLen, DEFAULT_UI.bracketLen)); syncBracketLen();
+            ddBracketStyle.selection = (num(v.bracketStyle, DEFAULT_UI.bracketStyle) >= 1) ? 1 : 0;
+            ckBrLT.value = !!v.bracketLT;
+            ckBrRT.value = !!v.bracketRT;
+            ckBrLB.value = !!v.bracketLB;
+            ckBrRB.value = !!v.bracketRB;
+            etBracketStroke.text = String(num(v.bracketStrokeW, DEFAULT_UI.bracketStrokeW)); syncBracketStroke();
+            brColorSwatch.setColor(v.bracketStrokeColor || DEFAULT_UI.bracketStrokeColor);
+
+            ckSideLine.value = !!v.sideLineOn;
+            ckSideTop.value = !!v.sideLineTop;
+            ckSideBottom.value = !!v.sideLineBottom;
+            ckSideLeft.value = !!v.sideLineLeft;
+            ckSideRight.value = !!v.sideLineRight;
+            etSideLineStroke.text = String(num(v.sideLineStrokeW, DEFAULT_UI.sideLineStrokeW)); syncSideStroke();
+            sideColorSwatch.setColor(v.sideLineStrokeColor || DEFAULT_UI.sideLineStrokeColor);
+
+            rbAll.value = String(v.multiMode || DEFAULT_UI.multiMode) === "all";
+            rbEach.value = !rbAll.value;
+            ckInsertAbove.value = !!v.insertAbove;
+            ckAdj.value = !!v.makeAdj;
+            ckMatte.value = !!v.setMatte;
+            ckAllowAuto.value = !!v.allowAuto;
+        }
+
+        refreshPresetList();
+
+        btPresetSave.onClick = function() {
+            var nm = prompt("プリセット名", "Preset_" + (presets.length + 1));
+            if (nm === null) return;
+            nm = String(nm).replace(/^\s+|\s+$/g, "");
+            if (nm === "") nm = "Preset_" + (presets.length + 1);
+            var values = getCurrentUIValues();
+            var replaced = false;
+            for (var i=0; i<presets.length; i++) {
+                if (presets[i].name === nm) {
+                    presets[i].values = values;
+                    replaced = true;
+                    refreshPresetList(i);
+                    break;
+                }
+            }
+            if (!replaced) {
+                presets.push({name:nm, values:values});
+                refreshPresetList(presets.length - 1);
+            }
+            if (!savePresets(presets)) alert("プリセットの保存に失敗しました。");
+        };
+
+        btPresetLoad.onClick = function() {
+            var idx = ddPreset.selection ? ddPreset.selection.index : -1;
+            if (idx < 0 || idx >= presets.length) {
+                alert("読み込むプリセットを選択してください。");
+                return;
+            }
+            applyUIValues(presets[idx].values || {});
+        };
+
+        btPresetDelete.onClick = function() {
+            var idx = ddPreset.selection ? ddPreset.selection.index : -1;
+            if (idx < 0 || idx >= presets.length) {
+                alert("削除するプリセットを選択してください。");
+                return;
+            }
+            presets.splice(idx, 1);
+            refreshPresetList(Math.max(0, idx - 1));
+            if (!savePresets(presets)) alert("プリセットの保存に失敗しました。");
+        };
 
         function gatherOptions(){
             var padX   = num(etPadX.text, 16);
@@ -1914,51 +2159,11 @@ function createAutoRectForTargets(comp, targets, option) {
             var usePct = (padUnit === "%");
             var shrinkX = 0;
             var shrinkY = 0;
-            saveSetting("padX", padX);
-            saveSetting("padY", padY);
-            saveSetting("corner", corner);
-            saveSetting("padUnit", padUnit);
-            saveSetting("includeExt", ckExt.value);
-            saveSetting("strokeOn", ckStroke.value);
-            saveSetting("strokeW", strokeW);
-            saveSetting("fillOn", ckFill.value);
-            saveSetting("bracketOn", bracketOn);
-            saveSetting("bracketLen", bracketLen);
-            saveSetting("bracketStyle", bracketStyle);
-            saveSetting("bracketLT", ckBrLT.value);
-            saveSetting("bracketRT", ckBrRT.value);
-            saveSetting("bracketLB", ckBrLB.value);
-            saveSetting("bracketRB", ckBrRB.value);
-            saveSetting("bracketStrokeW", bracketStrokeW);
             var strokeC = strokeSwatch.getColor();
             var fillC   = fillSwatch.getColor();
             var brStrokeC = brColorSwatch.getColor();
             var sideStrokeC = sideColorSwatch.getColor();
-            saveSetting("strokeR", strokeC[0]);
-            saveSetting("strokeG", strokeC[1]);
-            saveSetting("strokeB", strokeC[2]);
-            saveSetting("fillR", fillC[0]);
-            saveSetting("fillG", fillC[1]);
-            saveSetting("fillB", fillC[2]);
-            saveSetting("bracketStrokeR", brStrokeC[0]);
-            saveSetting("bracketStrokeG", brStrokeC[1]);
-            saveSetting("bracketStrokeB", brStrokeC[2]);
-            saveSetting("sideLineOn", sideLineOn);
-            saveSetting("sideLineTop", ckSideTop.value);
-            saveSetting("sideLineBottom", ckSideBottom.value);
-            saveSetting("sideLineLeft", ckSideLeft.value);
-            saveSetting("sideLineRight", ckSideRight.value);
-            saveSetting("sideLineStrokeW", sideLineStrokeW);
-            saveSetting("sideLineStrokeR", sideStrokeC[0]);
-            saveSetting("sideLineStrokeG", sideStrokeC[1]);
-            saveSetting("sideLineStrokeB", sideStrokeC[2]);
-            saveSetting("insertAbove", ckInsertAbove.value);
-            saveSetting("makeAdj", ckAdj.value);
-            saveSetting("setMatte", ckMatte.value);
-            saveSetting("allowAuto", ckAllowAuto.value);
-            saveSetting("multiMode", rbAll.value ? "all" : "each");
             var shapeLabel = ddLabelColor.selection ? ddLabelColor.selection.index : 9;
-            saveSetting("shapeLabel", shapeLabel);
 
             return {
                 insertAbove:   ckInsertAbove.value,
