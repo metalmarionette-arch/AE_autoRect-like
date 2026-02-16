@@ -15,6 +15,7 @@
     var SCRIPT_NAME = "オート矩形ツール";
     var MATTE_TYPE  = TrackMatteType.ALPHA;
     var PRESET_FILE = "AE_autoRect-like_presets.json";
+    var GLOBAL_UI_KEY = "__AE_autoRect_like_v1_42_UI__";
     var DEFAULT_UI = {
         padX: 16,
         padY: 8,
@@ -1713,6 +1714,33 @@ function createAutoRectForTargets(comp, targets, option) {
 
 
 
+    function getExistingWindowSingleton() {
+        try {
+            var g = $.global;
+            if (!g) return null;
+            var w = g[GLOBAL_UI_KEY];
+            if (!w) return null;
+            try {
+                if (w.visible !== undefined) return w;
+            } catch (eVisible) {
+                return null;
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function storeWindowSingleton(win) {
+        try { $.global[GLOBAL_UI_KEY] = win; } catch (e) {}
+    }
+
+    function clearWindowSingleton(win) {
+        try {
+            if ($.global[GLOBAL_UI_KEY] === win) {
+                $.global[GLOBAL_UI_KEY] = null;
+            }
+        } catch (e) {}
+    }
+
     // -----------------------------
     // UI 構築
     // -----------------------------
@@ -2425,14 +2453,31 @@ function createAutoRectForTargets(comp, targets, option) {
         pal.layout.layout(true);
         pal.onResizing = pal.onResize = function () { this.layout.resize(); };
 
+        if (pal instanceof Window) {
+            pal.onClose = function () {
+                clearWindowSingleton(this);
+                return true;
+            };
+        }
+
         return pal;
     }
 
     // -----------------------------
     // エントリポイント（UI 起動）
     // -----------------------------
+    var existingWin = (thisObj instanceof Panel) ? null : getExistingWindowSingleton();
+    if (existingWin) {
+        try {
+            existingWin.show();
+            existingWin.active = true;
+        } catch (eShowAgain) {}
+        return;
+    }
+
     var ui = buildUI(thisObj);
     if (ui instanceof Window) {
+        storeWindowSingleton(ui);
         ui.center();
         ui.show();
     }
