@@ -1749,10 +1749,72 @@ function createAutoRectForTargets(comp, targets, option) {
             ? thisObj
             : new Window("palette", SCRIPT_NAME, undefined, {resizeable:true});
 
+        pal.orientation = "column";
+        pal.alignChildren = ["fill", "top"];
+        pal.spacing = 8;
+        pal.margins = 10;
+
+        function createButtonTabs(parent, labels) {
+            var root = parent.add("group");
+            root.orientation = "column";
+            root.alignChildren = ["fill", "top"];
+            root.spacing = 6;
+
+            var bar = root.add("group");
+            bar.orientation = "row";
+            bar.alignChildren = ["left", "center"];
+            bar.spacing = 6;
+            bar.alignment = "fill";
+
+            var stack = root.add("group");
+            stack.orientation = "stack";
+            stack.alignChildren = ["fill", "fill"];
+            stack.alignment = ["fill", "fill"];
+
+            var btns = [];
+            var pages = [];
+
+            function select(i) {
+                for (var k = 0; k < pages.length; k++) {
+                    var isOn = (k === i);
+                    pages[k].visible = isOn;
+                    pages[k].enabled = isOn;
+                    btns[k].enabled = !isOn;
+                }
+                stack.layout.layout(true);
+                root.layout.layout(true);
+                parent.layout.layout(true);
+            }
+
+            for (var i = 0; i < labels.length; i++) {
+                (function (idx) {
+                    var b = bar.add("button", undefined, labels[idx]);
+                    b.onClick = function () { select(idx); };
+                    btns.push(b);
+
+                    var page = stack.add("group");
+                    page.orientation = "column";
+                    page.alignChildren = ["fill", "top"];
+                    page.visible = false;
+                    page.enabled = false;
+                    pages.push(page);
+                })(i);
+            }
+
+            if (pages.length > 0) select(0);
+
+            return { root: root, bar: bar, stack: stack, pages: pages, select: select };
+        }
+
+        var tabs = createButtonTabs(pal, ["メイン", "設定"]);
+        var pageMain = tabs.pages[0];
+        var pageSettings = tabs.pages[1];
+
         // 上部：選択情報
-        var infoGrp = pal.add("group");
+        var infoGrp = pageMain.add("group");
         infoGrp.orientation = "column";
         infoGrp.alignChildren = "left";
+        infoGrp.alignment = "fill";
 
         var selTxt  = infoGrp.add("statictext", undefined, "選択：なし");
         selTxt.characters = 40;
@@ -1760,17 +1822,28 @@ function createAutoRectForTargets(comp, targets, option) {
         warnTxt.characters = 40;
 
         // メインボタン
-        var btnGrp = pal.add("group");
+        var btnGrid = pageMain.add("group");
+        btnGrid.orientation = "column";
+        btnGrid.alignChildren = ["fill", "top"];
+        btnGrid.alignment = "fill";
+        btnGrid.spacing = 8;
+
+        var btnGrp = btnGrid.add("group");
+        btnGrp.orientation = "row";
         btnGrp.alignment = "fill";
         var btCreate   = btnGrp.add("button", undefined, "作成 (Create)");
         var btLockPad  = btnGrp.add("button", undefined, "文字追従停止");
         var btUnlockPad = btnGrp.add("button", undefined, "文字追従復活");
-        var btApplyFollow = btnGrp.add("button", undefined, "追従チェック反映");
-        var btCopyParams = btnGrp.add("button", undefined, "最後選択の設定を他へ反映");
-        var btBake     = btnGrp.add("button", undefined, "Bake 固定化");
+
+        var btnGrp2 = btnGrid.add("group");
+        btnGrp2.orientation = "row";
+        btnGrp2.alignment = "fill";
+        var btApplyFollow = btnGrp2.add("button", undefined, "追従チェック反映");
+        var btCopyParams = btnGrp2.add("button", undefined, "最後選択の設定を他へ反映");
+        var btBake     = btnGrp2.add("button", undefined, "Bake 固定化");
 
         // スイッチ列
-        var sw = pal.add("group");
+        var sw = pageSettings.add("group");
         sw.orientation = "row";
         sw.alignment   = "fill";
         var ckInsertAbove = sw.add("checkbox", undefined, "上に挿入");
@@ -1779,7 +1852,7 @@ function createAutoRectForTargets(comp, targets, option) {
         var ckAllowAuto   = sw.add("checkbox", undefined, "重複許可");
 
         // オプション
-        var opt = pal.add("panel", undefined, "オプション");
+        var opt = pageSettings.add("panel", undefined, "オプション");
         opt.orientation = "column";
         opt.alignChildren = "left";
         opt.alignment = "fill";
@@ -1905,7 +1978,7 @@ function createAutoRectForTargets(comp, targets, option) {
         ], "サイドラインの線色を設定します。");
 
 // マルチ選択モード
-        var pm = pal.add("panel", undefined, "複数レイヤー処理");
+        var pm = pageSettings.add("panel", undefined, "複数レイヤー処理");
         pm.orientation   = "row";
         pm.alignChildren = "left";
 
@@ -1923,7 +1996,7 @@ function createAutoRectForTargets(comp, targets, option) {
         ckAllowAuto.value   = DEFAULT_UI.allowAuto;
 
         var presets = loadPresets();
-        var presetPanel = pal.add("panel", undefined, "プリセット");
+        var presetPanel = pageSettings.add("panel", undefined, "プリセット");
         presetPanel.orientation = "row";
         presetPanel.alignChildren = "left";
         var ddPreset = presetPanel.add("dropdownlist", undefined, []);
