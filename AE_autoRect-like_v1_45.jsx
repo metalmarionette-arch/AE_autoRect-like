@@ -14,8 +14,8 @@
 (function (thisObj) {
     var SCRIPT_NAME = "オート矩形ツール";
     var MATTE_TYPE  = TrackMatteType.ALPHA;
-    var PRESET_FILE = "AE_autoRect-like_presets.json";
-    var GLOBAL_UI_KEY = "__AE_autoRect_like_v1_42_UI__";
+    var PRESET_FILE = "AE_autoRect-like_v1_45_customPresets.json";
+    var GLOBAL_UI_KEY = "__AE_autoRect_like_v1_45_UI__";
     var DEFAULT_UI = {
         padX: 16,
         padY: 8,
@@ -238,15 +238,21 @@
     }
 
     function getPresetFilePath() {
+        var folder = null;
         try {
-            var scriptFile = new File($.fileName);
-            if (scriptFile && scriptFile.parent && scriptFile.parent.exists) {
-                return scriptFile.parent.fullName + "/" + PRESET_FILE;
-            }
+            var docsPath = (Folder.myDocuments && Folder.myDocuments.fsName)
+                ? Folder.myDocuments.fsName
+                : Folder.myDocuments.fullName;
+            folder = new Folder(docsPath + "/Adobe/After Effects/AE_SUGI_ScriptLancher_CustomPresets");
         } catch (e) {}
-        var basePath = (Folder.userData && Folder.userData.fsName) ? Folder.userData.fsName : Folder.userData.fullName;
-        var targetDir = basePath + "/Adobe/After Effects/AutoRectLike";
-        var folder = new Folder(targetDir);
+
+        if (!folder) {
+            var fallbackBase = (Folder.userData && Folder.userData.fsName)
+                ? Folder.userData.fsName
+                : Folder.userData.fullName;
+            folder = new Folder(fallbackBase + "/Adobe/After Effects/AE_SUGI_ScriptLancher_CustomPresets");
+        }
+
         if (!folder.exists) folder.create();
         return folder.fullName + "/" + PRESET_FILE;
     }
@@ -1794,7 +1800,8 @@ function createAutoRectForTargets(comp, targets, option) {
         var tpanel = pal.add("tabbedpanel");
         tpanel.alignChildren = "fill";
         tpanel.alignment     = ["fill","fill"];
-        tpanel.preferredSize.height = 420;
+        tpanel.preferredSize = [620, 420];
+        tpanel.minimumSize   = [620, 420];
 
         // オプションUI部品
         function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) {
@@ -1812,7 +1819,7 @@ function createAutoRectForTargets(comp, targets, option) {
         }
 
         // ---- タブ: サイズ（余白/角丸/単位/Extents） ----
-        var tSize = tpanel.add("tab", undefined, "サイズ");
+        var tSize = tpanel.add("tab", undefined, "サイズ・外観");
         tSize.orientation   = "column";
         tSize.alignChildren = ["fill","top"];
 
@@ -1840,12 +1847,8 @@ function createAutoRectForTargets(comp, targets, option) {
         var ckExt = sizePanel.add("checkbox", undefined, "段落テキストの拡張境界を含める（Include Extents）");
         ckExt.value = DEFAULT_UI.includeExt;
 
-        // ---- タブ: 外観（Stroke/Fill/Label） ----
-        var tStyle = tpanel.add("tab", undefined, "外観");
-        tStyle.orientation   = "column";
-        tStyle.alignChildren = ["fill","top"];
-
-        var stylePanel = tStyle.add("panel", undefined, "線・塗り・ラベル");
+        // ---- サイズタブ内に外観設定を統合（サイズ + 外観） ----
+        var stylePanel = tSize.add("panel", undefined, "線・塗り・ラベル");
         stylePanel.orientation   = "column";
         stylePanel.alignChildren = "left";
         stylePanel.alignment     = "fill";
