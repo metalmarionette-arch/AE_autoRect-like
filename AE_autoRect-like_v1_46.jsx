@@ -14,7 +14,7 @@
 (function (thisObj) {
     var SCRIPT_NAME = "オート矩形ツール";
     var MATTE_TYPE  = TrackMatteType.ALPHA;
-    var PRESET_FILE = "AE_autoRect-like_presets.json";
+    var PRESET_FILE = "AE_autoRect-like_v1_46_custom_presets.json";
     var GLOBAL_UI_KEY = "__AE_autoRect_like_v1_42_UI__";
     var DEFAULT_UI = {
         padX: 16,
@@ -238,14 +238,16 @@
     }
 
     function getPresetFilePath() {
+        var docsPath = null;
         try {
-            var scriptFile = new File($.fileName);
-            if (scriptFile && scriptFile.parent && scriptFile.parent.exists) {
-                return scriptFile.parent.fullName + "/" + PRESET_FILE;
+            if (Folder.myDocuments) {
+                docsPath = Folder.myDocuments.fsName || Folder.myDocuments.fullName;
             }
         } catch (e) {}
-        var basePath = (Folder.userData && Folder.userData.fsName) ? Folder.userData.fsName : Folder.userData.fullName;
-        var targetDir = basePath + "/Adobe/After Effects/AutoRectLike";
+        if (!docsPath) {
+            docsPath = (Folder.userData && Folder.userData.fsName) ? Folder.userData.fsName : Folder.userData.fullName;
+        }
+        var targetDir = docsPath + "/Adobe/After Effects/AE_SUGI_ScriptLancher_CustomPresets";
         var folder = new Folder(targetDir);
         if (!folder.exists) folder.create();
         return folder.fullName + "/" + PRESET_FILE;
@@ -1851,8 +1853,15 @@ function createAutoRectForTargets(comp, targets, option) {
         var ckMatte       = sw.add("checkbox", undefined, "トラックマット(アルファ)");
         var ckAllowAuto   = sw.add("checkbox", undefined, "重複許可");
 
-        // オプション
-        var opt = pageSettings.add("panel", undefined, "オプション");
+        // サイズ＋外観（旧「サイズ」「外観」を1つに統合）
+        var optionTabs = pageSettings.add("tabbedpanel");
+        optionTabs.alignChildren = ["fill", "top"];
+        optionTabs.alignment = "fill";
+        var sizeLookTab = optionTabs.add("tab", undefined, "サイズ・外観");
+        sizeLookTab.orientation = "column";
+        sizeLookTab.alignChildren = ["fill", "top"];
+
+        var opt = sizeLookTab.add("panel", undefined, "オプション");
         opt.orientation = "column";
         opt.alignChildren = "left";
         opt.alignment = "fill";
