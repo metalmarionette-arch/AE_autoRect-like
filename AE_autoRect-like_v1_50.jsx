@@ -579,7 +579,7 @@
 
     function buildBracketPathExpr(cornerLabel, dirX, dirY) {
         var s = "";
-        s += "function pick(name, def){ var ef = effect(name); if(!ef) return def; var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }\n";
+        s += "function pick(name, def){ try{ var ef = effect(name); if(!ef) return def; try{ var c = ef('チェックボックス'); if(c) return c.value; }catch(e1){} try{ var s = ef('スライダー'); if(s) return s.value; }catch(e2){} var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }catch(e){ return def; }}\n";
         s += "var enabled = pick('コーナーブラケット', 0);\n";
         s += "var cornerEnabled = pick('ブラケット " + cornerLabel + "', 0);\n";
         s += "var path;\n";
@@ -603,7 +603,7 @@
         var sX = isFinite(shrinkXVal) ? shrinkXVal : 0;
         var sY = isFinite(shrinkYVal) ? shrinkYVal : 0;
         var s = "";
-        s += "function pick(name, def){ var ef = effect(name); if(!ef) return def; var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }\n";
+        s += "function pick(name, def){ try{ var ef = effect(name); if(!ef) return def; try{ var c = ef('チェックボックス'); if(c) return c.value; }catch(e1){} try{ var s = ef('スライダー'); if(s) return s.value; }catch(e2){} var p=ef(1); return (p && isFinite(p.value)) ? p.value : def; }catch(e){ return def; }}\n";
         s += "var enabled = pick('サイドライン', 0);\n";
         s += "var sideEnabled = pick('サイドライン " + sideLabel + "', 0);\n";
         s += "var path;\n";
@@ -1027,7 +1027,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         addSlider("角丸", corner);
     }
 
-    function setSliderEffectValue(layer, name, value) {
+    function setEffectNumericValue(layer, name, value) {
         try {
             var fx = layer.property("ADBE Effect Parade");
             if (!fx) return false;
@@ -1040,7 +1040,7 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         }
     }
 
-    function getSliderEffectValue(layer, name, defVal) {
+    function getEffectNumericValue(layer, name, defVal) {
         try {
             var fx = layer.property("ADBE Effect Parade");
             if (!fx) return defVal;
@@ -1052,6 +1052,13 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         }
     }
 
+    function addCheckboxEffect(fx, name, checked) {
+        var cb = fx.addProperty("ADBE Checkbox Control");
+        cb.name = name;
+        cb.property("ADBE Checkbox Control-0001").setValue(checked ? 1 : 0);
+        return cb;
+    }
+
     function addBracketEffects(layer, opt) {
         opt = opt || {};
         var fx = layer.property("ADBE Effect Parade");
@@ -1061,15 +1068,15 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
             sld.property("ADBE Slider Control-0001").setValue(val);
             return sld;
         }
-        addSlider("コーナーブラケット", opt.bracketOn ? 1 : 0);
+        addCheckboxEffect(fx, "コーナーブラケット", !!opt.bracketOn);
         addSlider("ブラケット長", opt.bracketLength || 0);
         addSlider("ブラケットスタイル", opt.bracketStyle || 0);
         addSlider("ブラケット線幅", opt.bracketStrokeWidth || 0);
         var corners = opt.bracketCorners || {};
-        addSlider("ブラケット 左上", corners.lt ? 1 : 0);
-        addSlider("ブラケット 右上", corners.rt ? 1 : 0);
-        addSlider("ブラケット 左下", corners.lb ? 1 : 0);
-        addSlider("ブラケット 右下", corners.rb ? 1 : 0);
+        addCheckboxEffect(fx, "ブラケット 左上", corners.lt);
+        addCheckboxEffect(fx, "ブラケット 右上", corners.rt);
+        addCheckboxEffect(fx, "ブラケット 左下", corners.lb);
+        addCheckboxEffect(fx, "ブラケット 右下", corners.rb);
     }
 
     function addSideLineEffects(layer, opt) {
@@ -1081,12 +1088,12 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
             sld.property("ADBE Slider Control-0001").setValue(val);
             return sld;
         }
-        addSlider("サイドライン", opt.sideLineOn ? 1 : 0);
+        addCheckboxEffect(fx, "サイドライン", !!opt.sideLineOn);
         addSlider("サイドライン線幅", opt.sideLineStrokeWidth || 0);
-        addSlider("サイドライン 上", opt.sideLineSides ? (opt.sideLineSides.top ? 1 : 0) : 0);
-        addSlider("サイドライン 下", opt.sideLineSides ? (opt.sideLineSides.bottom ? 1 : 0) : 0);
-        addSlider("サイドライン 左", opt.sideLineSides ? (opt.sideLineSides.left ? 1 : 0) : 0);
-        addSlider("サイドライン 右", opt.sideLineSides ? (opt.sideLineSides.right ? 1 : 0) : 0);
+        addCheckboxEffect(fx, "サイドライン 上", opt.sideLineSides ? !!opt.sideLineSides.top : false);
+        addCheckboxEffect(fx, "サイドライン 下", opt.sideLineSides ? !!opt.sideLineSides.bottom : false);
+        addCheckboxEffect(fx, "サイドライン 左", opt.sideLineSides ? !!opt.sideLineSides.left : false);
+        addCheckboxEffect(fx, "サイドライン 右", opt.sideLineSides ? !!opt.sideLineSides.right : false);
         addSlider("サイドライン 上 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.top || 0) : 0);
         addSlider("サイドライン 下 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.bottom || 0) : 0);
         addSlider("サイドライン 左 縮小%", opt.sideLineShrink ? (opt.sideLineShrink.left || 0) : 0);
@@ -1145,8 +1152,8 @@ function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var rootOpacity = root.property("Transform").property("Opacity");
         if (rootOpacity && rootOpacity.canSetExpression) {
             rootOpacity.expression =
-                "var e = effect('コーナーブラケット');\n" +
-                "e ? e('スライダー') * 100 : 0;";
+                "function pick(name, def){ try{ var ef = effect(name); if(!ef) return def; try{ var c = ef('チェックボックス'); if(c) return c.value; }catch(e1){} try{ var sl = ef('スライダー'); if(sl) return sl.value; }catch(e2){} return def; }catch(e){ return def; }}\n" +
+                "pick('コーナーブラケット', 0) * 100;";
         }
 
         var corners = [
@@ -1194,8 +1201,8 @@ function ensureFixedBaseEffects(layer, baseSize, basePos) {
         var rootOpacity = root.property("Transform").property("Opacity");
         if (rootOpacity && rootOpacity.canSetExpression) {
             rootOpacity.expression =
-                "var e = effect('サイドライン');\n" +
-                "e ? e('スライダー') * 100 : 0;";
+                "function pick(name, def){ try{ var ef = effect(name); if(!ef) return def; try{ var c = ef('チェックボックス'); if(c) return c.value; }catch(e1){} try{ var sl = ef('スライダー'); if(sl) return sl.value; }catch(e2){} return def; }catch(e){ return def; }}\n" +
+                "pick('サイドライン', 0) * 100;";
         }
 
         var sides = [
@@ -1479,7 +1486,7 @@ function createAutoRectForTargets(comp, targets, option) {
         s += "var ey = shrinkEdges(h0, -shrinkY);\n";
         s += "var w1 = Math.max(0, ex[1]-ex[0]);\n";
         s += "var h1 = Math.max(0, ey[1]-ey[0]);\n";
-        s += "[basePos[0], basePos[1] + (h1 - h0) * 0.5];\n";
+        s += "[basePos[0], basePos[1]];\n";
         return s;
     }
 
@@ -1669,9 +1676,28 @@ function createAutoRectForTargets(comp, targets, option) {
 
                 var fixedSize = props.size.valueAtTime(time, false);
                 var fixedPos  = props.pos.valueAtTime(time, false);
-                ensureFixedBaseEffects(L, fixedSize, fixedPos);
+                var padX = getEffectNumericValue(L, "余白 X", 0);
+                var padY = getEffectNumericValue(L, "余白 Y", 0);
+                var usePct = getEffectNumericValue(L, "余白%モード", 0) > 0.5;
+                var shrinkX = getEffectNumericValue(L, "縮小 左右%", 0);
+                var shrinkY = getEffectNumericValue(L, "縮小 上下%", 0);
+                var sx = Math.max(0, 1 - Math.abs(shrinkX * 0.01));
+                var sy = Math.max(0, 1 - Math.abs(shrinkY * 0.01));
+                if (sx < 0.0001) sx = 0.0001;
+                if (sy < 0.0001) sy = 0.0001;
+                var baseW = fixedSize[0] / sx;
+                var baseH = fixedSize[1] / sy;
+                if (usePct) {
+                    baseW = baseW / Math.max(0.0001, (1 + padX * 0.02));
+                    baseH = baseH / Math.max(0.0001, (1 + padY * 0.02));
+                } else {
+                    baseW = Math.max(0, baseW - padX * 2);
+                    baseH = Math.max(0, baseH - padY * 2);
+                }
 
-                applyExpression(props.size, buildLockedRectSizeExpr(fixedSize[0], fixedSize[1]));
+                ensureFixedBaseEffects(L, [baseW, baseH], fixedPos);
+
+                applyExpression(props.size, buildLockedRectSizeExpr(baseW, baseH));
                 applyExpression(props.pos, buildLockedRectPosExpr(fixedPos));
                 if (props.round) applyExpression(props.round, buildRoundnessExpr());
             }
@@ -1902,12 +1928,28 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
         sizePanel.alignChildren = "left";
         sizePanel.alignment     = "fill";
 
-        var padXRow   = addSliderRow(sizePanel, "余白 X", "padX", 16, 0, 300, 6);
-        var padYRow   = addSliderRow(sizePanel, "余白 Y", "padY", 8, 0, 300, 6);
+        var padRow = sizePanel.add("group");
+        padRow.orientation = "row";
+        padRow.alignChildren = ["left","center"];
+        var padXRow = addSliderRow(padRow, "余白 X", "padX", 16, 0, 300, 5);
+        var padYRow = addSliderRow(padRow, "余白 Y", "padY", 8, 0, 300, 5);
+        padXRow.slider.preferredSize = [90, 18];
+        padYRow.slider.preferredSize = [90, 18];
+
+        var shrinkRow = sizePanel.add("group");
+        shrinkRow.orientation = "row";
+        shrinkRow.alignChildren = ["left","center"];
+        var shrinkXRow = addSliderRow(shrinkRow, "縮小 左右%", "shrinkX", 0, -100, 100, 5);
+        var shrinkYRow = addSliderRow(shrinkRow, "縮小 上下%", "shrinkY", 0, -100, 100, 5);
+        shrinkXRow.slider.preferredSize = [90, 18];
+        shrinkYRow.slider.preferredSize = [90, 18];
+
         var cornerRow = addSliderRow(sizePanel, "角丸",  "corner", 0, 0, 100, 6);
 
         var etPadX   = padXRow.edit;
         var etPadY   = padYRow.edit;
+        var etShrinkX = shrinkXRow.edit;
+        var etShrinkY = shrinkYRow.edit;
         var etCorner = cornerRow.edit;
 
         var unitRow = sizePanel.add("group");
@@ -2206,84 +2248,105 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
         function applyUIParamsToLayer(layer, ui) {
             if (!layer || !(layer instanceof ShapeLayer)) return;
 
-            setSliderEffectValue(layer, "余白 X", ui.padX);
-            setSliderEffectValue(layer, "余白 Y", ui.padY);
-            setSliderEffectValue(layer, "余白%モード", ui.padUnit === "%" ? 1 : 0);
-            setSliderEffectValue(layer, "角丸", ui.corner);
-            setSliderEffectValue(layer, "コーナーブラケット", ui.bracketOn ? 1 : 0);
-            setSliderEffectValue(layer, "ブラケット長", ui.bracketLen);
-            setSliderEffectValue(layer, "ブラケットスタイル", ui.bracketStyle);
-            setSliderEffectValue(layer, "ブラケット線幅", ui.bracketStrokeW);
-            setSliderEffectValue(layer, "ブラケット 左上", ui.bracketLT ? 1 : 0);
-            setSliderEffectValue(layer, "ブラケット 右上", ui.bracketRT ? 1 : 0);
-            setSliderEffectValue(layer, "ブラケット 左下", ui.bracketLB ? 1 : 0);
-            setSliderEffectValue(layer, "ブラケット 右下", ui.bracketRB ? 1 : 0);
-            setSliderEffectValue(layer, "サイドライン", ui.sideLineOn ? 1 : 0);
-            setSliderEffectValue(layer, "サイドライン線幅", ui.sideLineStrokeW);
-            setSliderEffectValue(layer, "サイドライン 上", ui.sideLineTop ? 1 : 0);
-            setSliderEffectValue(layer, "サイドライン 下", ui.sideLineBottom ? 1 : 0);
-            setSliderEffectValue(layer, "サイドライン 左", ui.sideLineLeft ? 1 : 0);
-            setSliderEffectValue(layer, "サイドライン 右", ui.sideLineRight ? 1 : 0);
+            setEffectNumericValue(layer, "余白 X", ui.padX);
+            setEffectNumericValue(layer, "余白 Y", ui.padY);
+            setEffectNumericValue(layer, "余白%モード", ui.padUnit === "%" ? 1 : 0);
+            setEffectNumericValue(layer, "縮小 左右%", ui.shrinkX);
+            setEffectNumericValue(layer, "縮小 上下%", ui.shrinkY);
+            setEffectNumericValue(layer, "角丸", ui.corner);
+            setEffectNumericValue(layer, "コーナーブラケット", ui.bracketOn ? 1 : 0);
+            setEffectNumericValue(layer, "ブラケット長", ui.bracketLen);
+            setEffectNumericValue(layer, "ブラケットスタイル", ui.bracketStyle);
+            setEffectNumericValue(layer, "ブラケット線幅", ui.bracketStrokeW);
+            setEffectNumericValue(layer, "ブラケット 左上", ui.bracketLT ? 1 : 0);
+            setEffectNumericValue(layer, "ブラケット 右上", ui.bracketRT ? 1 : 0);
+            setEffectNumericValue(layer, "ブラケット 左下", ui.bracketLB ? 1 : 0);
+            setEffectNumericValue(layer, "ブラケット 右下", ui.bracketRB ? 1 : 0);
+            setEffectNumericValue(layer, "サイドライン", ui.sideLineOn ? 1 : 0);
+            setEffectNumericValue(layer, "サイドライン線幅", ui.sideLineStrokeW);
+            setEffectNumericValue(layer, "サイドライン 上", ui.sideLineTop ? 1 : 0);
+            setEffectNumericValue(layer, "サイドライン 下", ui.sideLineBottom ? 1 : 0);
+            setEffectNumericValue(layer, "サイドライン 左", ui.sideLineLeft ? 1 : 0);
+            setEffectNumericValue(layer, "サイドライン 右", ui.sideLineRight ? 1 : 0);
 
             copyVectorGraphicPropsFromUI(layer, ui);
             try { layer.label = ui.shapeLabel; } catch (eLabel) {}
         }
 
         function copyVectorGraphicPropsFromUI(layer, ui) {
-            function scan(group) {
+            function scan(group, ctx) {
                 if (!group || group.numProperties === undefined) return;
                 for (var i = 1; i <= group.numProperties; i++) {
                     var p = group.property(i);
                     if (!p) continue;
+                    var nctx = ctx;
+                    if (p.matchName === "ADBE Vector Group") {
+                        var nm = p.name || "";
+                        if (nm === "AutoRect") nctx = "main";
+                        else if (nm === "CornerBrackets" || nm.indexOf("Bracket ") === 0) nctx = "bracket";
+                        else if (nm === "SideLines" || nm.indexOf("SideLine ") === 0) nctx = "side";
+                    }
                     if (p.matchName === "ADBE Vector Stroke Width") {
+                        var baseW = ui.strokeW;
+                        var adjName = "線幅 調整";
+                        if (nctx === "bracket") { baseW = ui.bracketStrokeW; adjName = "ブラケット線幅 調整"; }
+                        else if (nctx === "side") { baseW = ui.sideLineStrokeW; adjName = "サイドライン線幅 調整"; }
                         if (p.canSetExpression) {
-                            p.expression = "var base = " + ui.strokeW + ";\n" +
-                                           "var adj = effect('線幅 調整') ? effect('線幅 調整')('スライダー') : 0;\n" +
+                            p.expression = "var base = " + baseW + ";\n" +
+                                           "var adj = effect('" + adjName + "') ? effect('" + adjName + "')('スライダー') : 0;\n" +
                                            "Math.max(0, base + adj);";
-                        } else p.setValue(ui.strokeW);
+                        } else p.setValue(baseW);
                     } else if (p.matchName === "ADBE Vector Stroke Color") {
-                        p.setValue(ui.strokeColor);
-                    } else if (p.matchName === "ADBE Vector Fill Color") {
+                        if (nctx === "bracket") p.setValue(ui.bracketStrokeColor);
+                        else if (nctx === "side") p.setValue(ui.sideLineStrokeColor);
+                        else p.setValue(ui.strokeColor);
+                    } else if (p.matchName === "ADBE Vector Fill Color" && nctx === "main") {
                         p.setValue(ui.fillColor);
-                    } else if (p.matchName === "ADBE Vector Stroke Opacity") {
+                    } else if (p.matchName === "ADBE Vector Stroke Opacity" && nctx === "main") {
                         p.setValue(ui.strokeOn ? 100 : 0);
-                    } else if (p.matchName === "ADBE Vector Fill Opacity") {
+                    } else if (p.matchName === "ADBE Vector Fill Opacity" && nctx === "main") {
                         p.setValue(ui.fillOn ? 100 : 0);
                     }
-                    if (p.numProperties > 0) scan(p);
+                    if (p.numProperties > 0) scan(p, nctx);
                 }
             }
-            scan(layer.property("Contents"));
+            scan(layer.property("Contents"), "");
         }
 
         function readLayerParamsToUI(layer) {
             if (!layer) return;
 
-            setSliderRowValue(padXRow, getSliderEffectValue(layer, "余白 X", DEFAULT_UI.padX));
-            setSliderRowValue(padYRow, getSliderEffectValue(layer, "余白 Y", DEFAULT_UI.padY));
-            setSliderRowValue(cornerRow, getSliderEffectValue(layer, "角丸", DEFAULT_UI.corner));
-            ddPadUnit.selection = getSliderEffectValue(layer, "余白%モード", 0) > 0.5 ? 1 : 0;
+            setSliderRowValue(padXRow, getEffectNumericValue(layer, "余白 X", DEFAULT_UI.padX));
+            setSliderRowValue(padYRow, getEffectNumericValue(layer, "余白 Y", DEFAULT_UI.padY));
+            setSliderRowValue(shrinkXRow, getEffectNumericValue(layer, "縮小 左右%", 0));
+            setSliderRowValue(shrinkYRow, getEffectNumericValue(layer, "縮小 上下%", 0));
+            setSliderRowValue(cornerRow, getEffectNumericValue(layer, "角丸", DEFAULT_UI.corner));
+            ddPadUnit.selection = getEffectNumericValue(layer, "余白%モード", 0) > 0.5 ? 1 : 0;
 
-            setSliderRowValue(brLenRow, getSliderEffectValue(layer, "ブラケット長", DEFAULT_UI.bracketLen));
-            ddBracketStyle.selection = Math.round(getSliderEffectValue(layer, "ブラケットスタイル", DEFAULT_UI.bracketStyle));
-            ckBracket.value = getSliderEffectValue(layer, "コーナーブラケット", 0) > 0.5;
-            setSliderRowValue(brStrokeRow, getSliderEffectValue(layer, "ブラケット線幅", DEFAULT_UI.bracketStrokeW));
-            ckBrLT.value = getSliderEffectValue(layer, "ブラケット 左上", 1) > 0.5;
-            ckBrRT.value = getSliderEffectValue(layer, "ブラケット 右上", 1) > 0.5;
-            ckBrLB.value = getSliderEffectValue(layer, "ブラケット 左下", 1) > 0.5;
-            ckBrRB.value = getSliderEffectValue(layer, "ブラケット 右下", 1) > 0.5;
+            setSliderRowValue(brLenRow, getEffectNumericValue(layer, "ブラケット長", DEFAULT_UI.bracketLen));
+            ddBracketStyle.selection = Math.round(getEffectNumericValue(layer, "ブラケットスタイル", DEFAULT_UI.bracketStyle));
+            ckBracket.value = getEffectNumericValue(layer, "コーナーブラケット", 0) > 0.5;
+            setSliderRowValue(brStrokeRow, getEffectNumericValue(layer, "ブラケット線幅", DEFAULT_UI.bracketStrokeW));
+            ckBrLT.value = getEffectNumericValue(layer, "ブラケット 左上", 1) > 0.5;
+            ckBrRT.value = getEffectNumericValue(layer, "ブラケット 右上", 1) > 0.5;
+            ckBrLB.value = getEffectNumericValue(layer, "ブラケット 左下", 1) > 0.5;
+            ckBrRB.value = getEffectNumericValue(layer, "ブラケット 右下", 1) > 0.5;
 
-            ckSideLine.value = getSliderEffectValue(layer, "サイドライン", 0) > 0.5;
-            setSliderRowValue(sideStrokeRow, getSliderEffectValue(layer, "サイドライン線幅", DEFAULT_UI.sideLineStrokeW));
-            ckSideTop.value = getSliderEffectValue(layer, "サイドライン 上", 1) > 0.5;
-            ckSideBottom.value = getSliderEffectValue(layer, "サイドライン 下", 1) > 0.5;
-            ckSideLeft.value = getSliderEffectValue(layer, "サイドライン 左", 1) > 0.5;
-            ckSideRight.value = getSliderEffectValue(layer, "サイドライン 右", 1) > 0.5;
+            ckSideLine.value = getEffectNumericValue(layer, "サイドライン", 0) > 0.5;
+            setSliderRowValue(sideStrokeRow, getEffectNumericValue(layer, "サイドライン線幅", DEFAULT_UI.sideLineStrokeW));
+            ckSideTop.value = getEffectNumericValue(layer, "サイドライン 上", 1) > 0.5;
+            ckSideBottom.value = getEffectNumericValue(layer, "サイドライン 下", 1) > 0.5;
+            ckSideLeft.value = getEffectNumericValue(layer, "サイドライン 左", 1) > 0.5;
+            ckSideRight.value = getEffectNumericValue(layer, "サイドライン 右", 1) > 0.5;
 
             var c = extractLayerVectorStyle(layer);
             if (c.strokeColor) strokeSwatch.setColor(c.strokeColor);
             if (c.fillColor) fillSwatch.setColor(c.fillColor);
+            if (c.bracketStrokeColor) brColorSwatch.setColor(c.bracketStrokeColor);
+            if (c.sideLineStrokeColor) sideColorSwatch.setColor(c.sideLineStrokeColor);
             if (isFinite(c.strokeWidth)) setSliderRowValue(strokeRow, c.strokeWidth);
+            if (isFinite(c.bracketStrokeWidth)) setSliderRowValue(brStrokeRow, c.bracketStrokeWidth);
+            if (isFinite(c.sideLineStrokeWidth)) setSliderRowValue(sideStrokeRow, c.sideLineStrokeWidth);
             ckStroke.value = c.strokeOn;
             ckFill.value = c.fillOn;
 
@@ -2291,28 +2354,48 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
         }
 
         function extractLayerVectorStyle(layer) {
-            var out = { strokeWidth: DEFAULT_UI.strokeW, strokeColor: null, fillColor: null, strokeOn: true, fillOn: true };
-            function scan(group) {
+            var out = {
+                strokeWidth: DEFAULT_UI.strokeW,
+                bracketStrokeWidth: DEFAULT_UI.bracketStrokeW,
+                sideLineStrokeWidth: DEFAULT_UI.sideLineStrokeW,
+                strokeColor: null,
+                bracketStrokeColor: null,
+                sideLineStrokeColor: null,
+                fillColor: null,
+                strokeOn: true,
+                fillOn: true
+            };
+            function scan(group, ctx) {
                 if (!group || group.numProperties === undefined) return;
                 for (var i = 1; i <= group.numProperties; i++) {
                     var p = group.property(i);
                     if (!p) continue;
-                    if (p.matchName === "ADBE Vector Stroke Width" && !out.strokeWidthFound) {
-                        out.strokeWidth = p.value;
-                        out.strokeWidthFound = 1;
-                    } else if (p.matchName === "ADBE Vector Stroke Color" && !out.strokeColor) {
-                        out.strokeColor = p.value;
-                    } else if (p.matchName === "ADBE Vector Fill Color" && !out.fillColor) {
+                    var nctx = ctx;
+                    if (p.matchName === "ADBE Vector Group") {
+                        var nm = p.name || "";
+                        if (nm === "AutoRect") nctx = "main";
+                        else if (nm === "CornerBrackets" || nm.indexOf("Bracket ") === 0) nctx = "bracket";
+                        else if (nm === "SideLines" || nm.indexOf("SideLine ") === 0) nctx = "side";
+                    }
+                    if (p.matchName === "ADBE Vector Stroke Width") {
+                        if (nctx === "bracket" && !out.bracketStrokeWidthFound) { out.bracketStrokeWidth = p.value; out.bracketStrokeWidthFound = 1; }
+                        else if (nctx === "side" && !out.sideStrokeWidthFound) { out.sideLineStrokeWidth = p.value; out.sideStrokeWidthFound = 1; }
+                        else if (!out.strokeWidthFound) { out.strokeWidth = p.value; out.strokeWidthFound = 1; }
+                    } else if (p.matchName === "ADBE Vector Stroke Color") {
+                        if (nctx === "bracket" && !out.bracketStrokeColor) out.bracketStrokeColor = p.value;
+                        else if (nctx === "side" && !out.sideLineStrokeColor) out.sideLineStrokeColor = p.value;
+                        else if (!out.strokeColor) out.strokeColor = p.value;
+                    } else if (p.matchName === "ADBE Vector Fill Color" && nctx === "main" && !out.fillColor) {
                         out.fillColor = p.value;
-                    } else if (p.matchName === "ADBE Vector Stroke Opacity") {
+                    } else if (p.matchName === "ADBE Vector Stroke Opacity" && nctx === "main") {
                         out.strokeOn = out.strokeOn && (p.value > 0.5);
-                    } else if (p.matchName === "ADBE Vector Fill Opacity") {
+                    } else if (p.matchName === "ADBE Vector Fill Opacity" && nctx === "main") {
                         out.fillOn = out.fillOn && (p.value > 0.5);
                     }
-                    if (p.numProperties > 0) scan(p);
+                    if (p.numProperties > 0) scan(p, nctx);
                 }
             }
-            scan(layer.property("Contents"));
+            scan(layer.property("Contents"), "");
             return out;
         }
 
@@ -2320,6 +2403,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
             return {
                 padX: num(etPadX.text, DEFAULT_UI.padX),
                 padY: num(etPadY.text, DEFAULT_UI.padY),
+                shrinkX: num(etShrinkX.text, 0),
+                shrinkY: num(etShrinkY.text, 0),
                 corner: num(etCorner.text, DEFAULT_UI.corner),
                 padUnit: ddPadUnit.selection ? ddPadUnit.selection.text : DEFAULT_UI.padUnit,
                 includeExt: !!ckExt.value,
@@ -2369,6 +2454,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
 
         padXRow.row.helpTip = "左右余白です。"; padXRow.edit.helpTip = padXRow.slider.helpTip = "左右余白(pxまたは%)。";
         padYRow.row.helpTip = "上下余白です。"; padYRow.edit.helpTip = padYRow.slider.helpTip = "上下余白(pxまたは%)。";
+        shrinkXRow.row.helpTip = "矩形の左右縮小率です。"; shrinkXRow.edit.helpTip = shrinkXRow.slider.helpTip = "縮小 左右%( -100〜100 )。";
+        shrinkYRow.row.helpTip = "矩形の上下縮小率です。"; shrinkYRow.edit.helpTip = shrinkYRow.slider.helpTip = "縮小 上下%( -100〜100 )。";
         cornerRow.row.helpTip = "角丸半径です。"; cornerRow.edit.helpTip = cornerRow.slider.helpTip = "角丸(0-100)。";
         ddPadUnit.helpTip = "余白の単位を px / % で切り替えます。";
         ckExt.helpTip = "段落テキストの拡張境界も矩形計算に含めます。";
@@ -2444,6 +2531,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
 
         var syncPadX = bindSlider(padXRow.edit, padXRow.slider, 0, 300);
         var syncPadY = bindSlider(padYRow.edit, padYRow.slider, 0, 300);
+        var syncShrinkX = bindSlider(shrinkXRow.edit, shrinkXRow.slider, -100, 100);
+        var syncShrinkY = bindSlider(shrinkYRow.edit, shrinkYRow.slider, -100, 100);
         var syncCorner = bindSlider(cornerRow.edit, cornerRow.slider, 0, 100);
         var syncStrokeW = bindSlider(etStrokeW, slStrokeW, 0, 50);
         var syncBracketLen = bindSlider(etBracketLen, slBracketLen, 0, 300);
@@ -2454,6 +2543,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
             if (!v) return;
             etPadX.text = String(num(v.padX, DEFAULT_UI.padX)); syncPadX();
             etPadY.text = String(num(v.padY, DEFAULT_UI.padY)); syncPadY();
+            etShrinkX.text = String(num(v.shrinkX, 0)); syncShrinkX();
+            etShrinkY.text = String(num(v.shrinkY, 0)); syncShrinkY();
             etCorner.text = String(num(v.corner, DEFAULT_UI.corner)); syncCorner();
             ddPadUnit.selection = (String(v.padUnit || DEFAULT_UI.padUnit) === "%") ? 1 : 0;
             ckExt.value = !!v.includeExt;
@@ -2565,8 +2656,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
             var sideLineStrokeW = Math.max(0, num(etSideLineStroke.text, 4));
             var padUnit = ddPadUnit.selection ? ddPadUnit.selection.text : "px";
             var usePct = (padUnit === "%");
-            var shrinkX = 0;
-            var shrinkY = 0;
+            var shrinkX = num(etShrinkX.text, 0);
+            var shrinkY = num(etShrinkY.text, 0);
             var strokeC = strokeSwatch.getColor();
             var fillC   = fillSwatch.getColor();
             var brStrokeC = brColorSwatch.getColor();
