@@ -1009,30 +1009,6 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         return {stroke:stroke, fill:fill};
     }
 
-    function ensureCheckboxEffect(layer, name, checked) {
-        var fx = layer.property("ADBE Effect Parade");
-        if (!fx) return null;
-        var cb = fx.property(name);
-        if (!cb) {
-            cb = fx.addProperty("ADBE Checkbox Control");
-            cb.name = name;
-        }
-        cb.property("ADBE Checkbox Control-0001").setValue(checked ? 1 : 0);
-        return cb;
-    }
-
-    function getCheckboxEffectValue(layer, name, defVal) {
-        try {
-            var fx = layer.property("ADBE Effect Parade");
-            if (!fx) return !!defVal;
-            var cb = fx.property(name);
-            if (!cb) return !!defVal;
-            return cb.property("ADBE Checkbox Control-0001").value > 0.5;
-        } catch (e) {
-            return !!defVal;
-        }
-    }
-
     function addPaddingAndCornerEffects(layer, padX, padY, corner, usePct, shrinkX, shrinkY) {
         var fx = layer.property("ADBE Effect Parade");
         function addSlider(name, val){
@@ -1049,7 +1025,31 @@ function buildBracketPosExpr(mode, targetNameList, includeExtents, cornerX, corn
         addSlider("線幅 調整", 0);
         addSlider("ブラケット線幅 調整", 0);
         addSlider("角丸", corner);
-        ensureCheckboxEffect(layer, "文字追従 有効", true);
+    }
+
+    function setSliderEffectValue(layer, name, value) {
+        try {
+            var fx = layer.property("ADBE Effect Parade");
+            if (!fx) return false;
+            var ef = fx.property(name);
+            if (!ef || ef.numProperties < 1) return false;
+            ef.property(1).setValue(value);
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function getSliderEffectValue(layer, name, defVal) {
+        try {
+            var fx = layer.property("ADBE Effect Parade");
+            if (!fx) return defVal;
+            var ef = fx.property(name);
+            if (!ef || ef.numProperties < 1) return defVal;
+            return ef.property(1).value;
+        } catch (e) {
+            return defVal;
+        }
     }
 
     function addBracketEffects(layer, opt) {
@@ -1418,9 +1418,73 @@ function createAutoRectForTargets(comp, targets, option) {
         return { size: sz, pos: ps, round: rd };
     }
 
+    function buildLockedRectSizeExpr(baseW, baseH) {
+        var w = isFinite(baseW) ? baseW : 0;
+        var h = isFinite(baseH) ? baseH : 0;
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
+        s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "function shrinkEdges(base, v){\n";
+        s += "  var f = clamp(v*0.01, -1, 1);\n";
+        s += "  var amt = Math.abs(f);\n";
+        s += "  var start = 0, end = base;\n";
+        s += "  if (f > 0){ start = base * amt; }\n";
+        s += "  else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "  return [start, end];\n";
+        s += "}\n";
+        s += "var baseW = pickSlider('固定ベース幅', " + w + ");\n";
+        s += "var baseH = pickSlider('固定ベース高さ', " + h + ");\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
+        s += "var px = (usePct > 0.5) ? baseW * (pxSlider*0.01) : pxSlider;\n";
+        s += "var py = (usePct > 0.5) ? baseH * (pySlider*0.01) : pySlider;\n";
+        s += "var w0 = Math.max(0, baseW + px*2);\n";
+        s += "var h0 = Math.max(0, baseH + py*2);\n";
+        s += "var ex = shrinkEdges(w0, shrinkX);\n";
+        s += "var ey = shrinkEdges(h0, -shrinkY);\n";
+        s += "[Math.max(0, ex[1]-ex[0]), Math.max(0, ey[1]-ey[0])];\n";
+        return s;
+    }
 
-    // シェイプレイヤー内を再帰的に走査して、RectSize/Pos/Round と変形系の
-    // エクスプレッションを処理
+    function buildLockedRectPosExpr(basePos) {
+        var px = (basePos && isFinite(basePos[0])) ? basePos[0] : 0;
+        var py = (basePos && isFinite(basePos[1])) ? basePos[1] : 0;
+        var s  = "";
+        s += "function pickSlider(name, def){ var ef = effect(name); return ef ? ef('スライダー') : def; }\n";
+        s += "function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }\n";
+        s += "function shrinkEdges(base, v){\n";
+        s += "  var f = clamp(v*0.01, -1, 1);\n";
+        s += "  var amt = Math.abs(f);\n";
+        s += "  var start = 0, end = base;\n";
+        s += "  if (f > 0){ start = base * amt; }\n";
+        s += "  else if (f < 0){ end = base * (1 - amt); }\n";
+        s += "  return [start, end];\n";
+        s += "}\n";
+        s += "var basePos = effect('固定ベース位置') ? effect('固定ベース位置')('ポイント') : [" + px + ", " + py + "];\n";
+        s += "var baseW = pickSlider('固定ベース幅', 0);\n";
+        s += "var baseH = pickSlider('固定ベース高さ', 0);\n";
+        s += "var pxSlider = pickSlider('余白 X', 0);\n";
+        s += "var pySlider = pickSlider('余白 Y', 0);\n";
+        s += "var usePct = pickSlider('余白%モード', 0);\n";
+        s += "var shrinkX = pickSlider('縮小 左右%', 0);\n";
+        s += "var shrinkY = pickSlider('縮小 上下%', 0);\n";
+        s += "var pxPad = (usePct > 0.5) ? baseW * (pxSlider*0.01) : pxSlider;\n";
+        s += "var pyPad = (usePct > 0.5) ? baseH * (pySlider*0.01) : pySlider;\n";
+        s += "var w0 = Math.max(0, baseW + pxPad*2);\n";
+        s += "var h0 = Math.max(0, baseH + pyPad*2);\n";
+        s += "var ex = shrinkEdges(w0, shrinkX);\n";
+        s += "var ey = shrinkEdges(h0, -shrinkY);\n";
+        s += "var w1 = Math.max(0, ex[1]-ex[0]);\n";
+        s += "var h1 = Math.max(0, ey[1]-ey[0]);\n";
+        s += "[basePos[0], basePos[1] + (h1 - h0) * 0.5];\n";
+        return s;
+    }
+
+
+    // シェイプレイヤー内を再帰的に走査して、式を持つプロパティを処理
     function visitPropsWithExpression(layer, callback) {
         function scan(propGroup) {
             if (!propGroup || propGroup.numProperties === undefined) return;
@@ -1568,8 +1632,7 @@ function createAutoRectForTargets(comp, targets, option) {
             "ブラケット 左上", "ブラケット 右上", "ブラケット 左下", "ブラケット 右下",
             "サイドライン", "サイドライン線幅", "サイドライン線幅 調整",
             "サイドライン 上", "サイドライン 下", "サイドライン 左", "サイドライン 右",
-            "サイドライン 上 縮小%", "サイドライン 下 縮小%", "サイドライン 左 縮小%", "サイドライン 右 縮小%",
-            "文字追従 有効"
+            "サイドライン 上 縮小%", "サイドライン 下 縮小%", "サイドライン 左 縮小%", "サイドライン 右 縮小%"
         ];
 
         for (var i = 0; i < targetLayers.length; i++) {
@@ -1584,9 +1647,9 @@ function createAutoRectForTargets(comp, targets, option) {
         }
     }
 
-    // 余白固定（シンプル版）
-    // ・現在の見た目のサイズ＆位置をベースに固定
-    // ・以降はテキストの変化には追従せず、余白スライダーだけ反映
+    // 余白固定（式は一部維持）
+    // ・現在時刻の矩形サイズ/位置を固定ベースとして保持
+    // ・余白/縮小/線幅などのエフェクトは停止後も有効
     function lockWithPadding(ls, time) {
         for (var i = 0; i < ls.length; i++) {
             var L = ls[i];
@@ -1599,20 +1662,30 @@ function createAutoRectForTargets(comp, targets, option) {
             var padYef = fx.property("余白 Y");
             if (!padXef || !padYef) continue;
 
-            var padX = padXef.property(1).value;
-            var padY = padYef.property(1).value;
+            var rects = getRectProps(L);
+            for (var j = 0; j < rects.length; j++) {
+                var props = getRectSizePosRoundProps(rects[j]);
+                if (!props.size || !props.pos) continue;
 
-            visitPropsWithExpression(L, function(prop){
-                var v = prop.valueAtTime(time, false);
-                prop.expression = "";
-                prop.expressionEnabled = false;
-                if (prop.isTimeVarying) {
-                    prop.setValueAtTime(time, v);
-                } else {
-                    prop.setValue(v);
-                }
-            });
-            ensureCheckboxEffect(L, "文字追従 有効", false);
+                var fixedSize = props.size.valueAtTime(time, false);
+                var fixedPos  = props.pos.valueAtTime(time, false);
+                ensureFixedBaseEffects(L, fixedSize, fixedPos);
+
+                applyExpression(props.size, buildLockedRectSizeExpr(fixedSize[0], fixedSize[1]));
+                applyExpression(props.pos, buildLockedRectPosExpr(fixedPos));
+                if (props.round) applyExpression(props.round, buildRoundnessExpr());
+            }
+
+            var tf = ["アンカーポイント", "位置", "スケール", "回転", "X 回転", "Y 回転", "Z 回転", "方向"];
+            for (var t = 0; t < tf.length; t++) {
+                var tp = L.transform.property(tf[t]);
+                if (!tp || !tp.canSetExpression || tp.expression === "") continue;
+                var tv = tp.valueAtTime(time, false);
+                tp.expression = "";
+                tp.expressionEnabled = false;
+                if (tp.isTimeVarying) tp.setValueAtTime(time, tv);
+                else tp.setValue(tv);
+            }
         }
     }
 
@@ -1661,11 +1734,7 @@ function createAutoRectForTargets(comp, targets, option) {
             var padYef = fx.property("余白 Y");
             if (!padXef || !padYef) continue;
 
-            // ★ FIX:
-            // ここで「固定ベース幅/高さ/位置」がないとスキップしていたが、
-            // 現在の lockWithPadding(文字追従停止) ではそれらを作っていないので、
-            // この判定は削除する。
-            // （文字追従停止済みかどうかは、実際に Size/Pos が固定式に変わっているかで十分）
+            // 固定ベース系エフェクトが残っていても、常に追従式へ戻す。
 
             // 対象のテキストレイヤーを推定
             var target = findAutoRectTarget(comp, L);
@@ -1704,28 +1773,10 @@ function createAutoRectForTargets(comp, targets, option) {
             }
 
             linkLayerTransformByExpr(L, target);
-            ensureCheckboxEffect(L, "文字追従 有効", true);
 
-            // 固定ベース用エフェクトがあってもそのまま残す（現状は使っていない）
+            // 固定ベース用エフェクトは残す（文字追従停止へ再切替しても再利用できる）
         }
     }
-
-    function applyFollowStateFromEffects(ls, comp, time) {
-        if (!comp) return;
-        var toLock = [], toUnlock = [];
-        for (var i = 0; i < ls.length; i++) {
-            var L = ls[i];
-            if (!(L instanceof ShapeLayer)) continue;
-            var isFollow = getCheckboxEffectValue(L, "文字追従 有効", true);
-            if (isFollow) toUnlock.push(L);
-            else toLock.push(L);
-        }
-        if (toLock.length) lockWithPadding(toLock, time);
-        if (toUnlock.length) unlockPadding(toUnlock, comp);
-    }
-
-
-
 
 
     function getExistingWindowSingleton() {
@@ -2057,15 +2108,20 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
         // ---- タブ: 操作（追従/コピー など） ----
         var tOps = createTabPage("操作");
 
-        var opsPanel = tOps.add("panel", undefined, "追従・コピー");
+        var opsPanel = tOps.add("panel", undefined, "追従・パラメーター");
         opsPanel.orientation   = "column";
-        opsPanel.alignChildren = "fill";
+        opsPanel.alignChildren = "left";
         opsPanel.alignment     = "fill";
 
-        var btLockPad     = opsPanel.add("button", undefined, "文字追従停止");
-        var btUnlockPad   = opsPanel.add("button", undefined, "文字追従復活");
-        var btApplyFollow = opsPanel.add("button", undefined, "追従チェック反映");
-        var btCopyParams  = opsPanel.add("button", undefined, "最後選択の設定を他へ反映");
+        var btLockPad      = opsPanel.add("button", undefined, "文字追従停止");
+        var btUnlockPad    = opsPanel.add("button", undefined, "文字追従復活");
+        var btApplyUiParam = opsPanel.add("button", undefined, "パラメーター反映");
+        var btReadUiParam  = opsPanel.add("button", undefined, "パラメーター取得");
+        var btCopyParams   = opsPanel.add("button", undefined, "最後選択の設定を他へ反映");
+        var opButtons = [btLockPad, btUnlockPad, btApplyUiParam, btReadUiParam, btCopyParams];
+        for (var opi = 0; opi < opButtons.length; opi++) {
+            opButtons[opi].preferredSize = [190, 24];
+        }
         // -----------------------------
         // タブ切替でウィンドウが拡張し続ける対策：サイズを一度だけ計測して固定
         // -----------------------------
@@ -2141,6 +2197,125 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
             ddPreset.selection = idx;
         }
 
+        function setSliderRowValue(rowObj, v) {
+            var val = num(v, 0);
+            rowObj.edit.text = String(val);
+            try { rowObj.slider.value = val; } catch (e) {}
+        }
+
+        function applyUIParamsToLayer(layer, ui) {
+            if (!layer || !(layer instanceof ShapeLayer)) return;
+
+            setSliderEffectValue(layer, "余白 X", ui.padX);
+            setSliderEffectValue(layer, "余白 Y", ui.padY);
+            setSliderEffectValue(layer, "余白%モード", ui.padUnit === "%" ? 1 : 0);
+            setSliderEffectValue(layer, "角丸", ui.corner);
+            setSliderEffectValue(layer, "コーナーブラケット", ui.bracketOn ? 1 : 0);
+            setSliderEffectValue(layer, "ブラケット長", ui.bracketLen);
+            setSliderEffectValue(layer, "ブラケットスタイル", ui.bracketStyle);
+            setSliderEffectValue(layer, "ブラケット線幅", ui.bracketStrokeW);
+            setSliderEffectValue(layer, "ブラケット 左上", ui.bracketLT ? 1 : 0);
+            setSliderEffectValue(layer, "ブラケット 右上", ui.bracketRT ? 1 : 0);
+            setSliderEffectValue(layer, "ブラケット 左下", ui.bracketLB ? 1 : 0);
+            setSliderEffectValue(layer, "ブラケット 右下", ui.bracketRB ? 1 : 0);
+            setSliderEffectValue(layer, "サイドライン", ui.sideLineOn ? 1 : 0);
+            setSliderEffectValue(layer, "サイドライン線幅", ui.sideLineStrokeW);
+            setSliderEffectValue(layer, "サイドライン 上", ui.sideLineTop ? 1 : 0);
+            setSliderEffectValue(layer, "サイドライン 下", ui.sideLineBottom ? 1 : 0);
+            setSliderEffectValue(layer, "サイドライン 左", ui.sideLineLeft ? 1 : 0);
+            setSliderEffectValue(layer, "サイドライン 右", ui.sideLineRight ? 1 : 0);
+
+            copyVectorGraphicPropsFromUI(layer, ui);
+            try { layer.label = ui.shapeLabel; } catch (eLabel) {}
+        }
+
+        function copyVectorGraphicPropsFromUI(layer, ui) {
+            function scan(group) {
+                if (!group || group.numProperties === undefined) return;
+                for (var i = 1; i <= group.numProperties; i++) {
+                    var p = group.property(i);
+                    if (!p) continue;
+                    if (p.matchName === "ADBE Vector Stroke Width") {
+                        if (p.canSetExpression) {
+                            p.expression = "var base = " + ui.strokeW + ";\n" +
+                                           "var adj = effect('線幅 調整') ? effect('線幅 調整')('スライダー') : 0;\n" +
+                                           "Math.max(0, base + adj);";
+                        } else p.setValue(ui.strokeW);
+                    } else if (p.matchName === "ADBE Vector Stroke Color") {
+                        p.setValue(ui.strokeColor);
+                    } else if (p.matchName === "ADBE Vector Fill Color") {
+                        p.setValue(ui.fillColor);
+                    } else if (p.matchName === "ADBE Vector Stroke Opacity") {
+                        p.setValue(ui.strokeOn ? 100 : 0);
+                    } else if (p.matchName === "ADBE Vector Fill Opacity") {
+                        p.setValue(ui.fillOn ? 100 : 0);
+                    }
+                    if (p.numProperties > 0) scan(p);
+                }
+            }
+            scan(layer.property("Contents"));
+        }
+
+        function readLayerParamsToUI(layer) {
+            if (!layer) return;
+
+            setSliderRowValue(padXRow, getSliderEffectValue(layer, "余白 X", DEFAULT_UI.padX));
+            setSliderRowValue(padYRow, getSliderEffectValue(layer, "余白 Y", DEFAULT_UI.padY));
+            setSliderRowValue(cornerRow, getSliderEffectValue(layer, "角丸", DEFAULT_UI.corner));
+            ddPadUnit.selection = getSliderEffectValue(layer, "余白%モード", 0) > 0.5 ? 1 : 0;
+
+            setSliderRowValue(brLenRow, getSliderEffectValue(layer, "ブラケット長", DEFAULT_UI.bracketLen));
+            ddBracketStyle.selection = Math.round(getSliderEffectValue(layer, "ブラケットスタイル", DEFAULT_UI.bracketStyle));
+            ckBracket.value = getSliderEffectValue(layer, "コーナーブラケット", 0) > 0.5;
+            setSliderRowValue(brStrokeRow, getSliderEffectValue(layer, "ブラケット線幅", DEFAULT_UI.bracketStrokeW));
+            ckBrLT.value = getSliderEffectValue(layer, "ブラケット 左上", 1) > 0.5;
+            ckBrRT.value = getSliderEffectValue(layer, "ブラケット 右上", 1) > 0.5;
+            ckBrLB.value = getSliderEffectValue(layer, "ブラケット 左下", 1) > 0.5;
+            ckBrRB.value = getSliderEffectValue(layer, "ブラケット 右下", 1) > 0.5;
+
+            ckSideLine.value = getSliderEffectValue(layer, "サイドライン", 0) > 0.5;
+            setSliderRowValue(sideStrokeRow, getSliderEffectValue(layer, "サイドライン線幅", DEFAULT_UI.sideLineStrokeW));
+            ckSideTop.value = getSliderEffectValue(layer, "サイドライン 上", 1) > 0.5;
+            ckSideBottom.value = getSliderEffectValue(layer, "サイドライン 下", 1) > 0.5;
+            ckSideLeft.value = getSliderEffectValue(layer, "サイドライン 左", 1) > 0.5;
+            ckSideRight.value = getSliderEffectValue(layer, "サイドライン 右", 1) > 0.5;
+
+            var c = extractLayerVectorStyle(layer);
+            if (c.strokeColor) strokeSwatch.setColor(c.strokeColor);
+            if (c.fillColor) fillSwatch.setColor(c.fillColor);
+            if (isFinite(c.strokeWidth)) setSliderRowValue(strokeRow, c.strokeWidth);
+            ckStroke.value = c.strokeOn;
+            ckFill.value = c.fillOn;
+
+            updateDecorUI();
+        }
+
+        function extractLayerVectorStyle(layer) {
+            var out = { strokeWidth: DEFAULT_UI.strokeW, strokeColor: null, fillColor: null, strokeOn: true, fillOn: true };
+            function scan(group) {
+                if (!group || group.numProperties === undefined) return;
+                for (var i = 1; i <= group.numProperties; i++) {
+                    var p = group.property(i);
+                    if (!p) continue;
+                    if (p.matchName === "ADBE Vector Stroke Width" && !out.strokeWidthFound) {
+                        out.strokeWidth = p.value;
+                        out.strokeWidthFound = 1;
+                    } else if (p.matchName === "ADBE Vector Stroke Color" && !out.strokeColor) {
+                        out.strokeColor = p.value;
+                    } else if (p.matchName === "ADBE Vector Fill Color" && !out.fillColor) {
+                        out.fillColor = p.value;
+                    } else if (p.matchName === "ADBE Vector Stroke Opacity") {
+                        out.strokeOn = out.strokeOn && (p.value > 0.5);
+                    } else if (p.matchName === "ADBE Vector Fill Opacity") {
+                        out.fillOn = out.fillOn && (p.value > 0.5);
+                    }
+                    if (p.numProperties > 0) scan(p);
+                }
+            }
+            scan(layer.property("Contents"));
+            return out;
+        }
+
         function getCurrentUIValues() {
             return {
                 padX: num(etPadX.text, DEFAULT_UI.padX),
@@ -2182,7 +2357,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
         btCreate.helpTip = "現在の選択レイヤーに追従するAutoRectを作成します。";
         btLockPad.helpTip = "選択中のAutoRectの追従を停止し、現在の見た目で固定します。";
         btUnlockPad.helpTip = "選択中のAutoRectの追従を復活します。";
-        btApplyFollow.helpTip = "各レイヤーの『文字追従 有効』チェックを読み取り、ON=追従復活 / OFF=追従停止 を適用します。";
+        btApplyUiParam.helpTip = "UIで設定した値を選択中のAutoRectへ反映します。";
+        btReadUiParam.helpTip = "最後に選択したAutoRectから値を取得してUIへ反映します。";
         btCopyParams.helpTip = "複数選択時、最後に選択したAutoRectの設定・アニメーションを他へコピーします。";
         btBake.helpTip = "選択中のAutoRect式を現在時刻の値で焼き付け固定します。";
 
@@ -2583,8 +2759,8 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
             }
         };
 
-        btApplyFollow.onClick = function(){
-            app.beginUndoGroup(SCRIPT_NAME + " - 追従チェック反映");
+        btApplyUiParam.onClick = function(){
+            app.beginUndoGroup(SCRIPT_NAME + " - パラメーター反映");
             try {
                 var comp = app.project.activeItem;
                 if (!comp || !(comp instanceof CompItem)) {
@@ -2592,14 +2768,29 @@ function addSliderRow(parent, label, settingKey, defVal, minVal, maxVal, chars) 
                     return;
                 }
                 var cand = pickCandidateShapesFromSelection(comp);
-                if (cand.length === 0) {
-                    alert("追従チェック反映の対象となる矩形レイヤーを選択してください。");
+                if (!cand || cand.length === 0) {
+                    alert("パラメーター反映の対象となる矩形レイヤーを選択してください。");
                     return;
                 }
-                applyFollowStateFromEffects(cand, comp, comp.time);
+                var ui = getCurrentUIValues();
+                for (var i=0;i<cand.length;i++) applyUIParamsToLayer(cand[i], ui);
             } finally {
                 app.endUndoGroup();
             }
+        };
+
+        btReadUiParam.onClick = function(){
+            var comp = app.project.activeItem;
+            if (!comp || !(comp instanceof CompItem)) {
+                alert("コンポジションをアクティブにしてください。");
+                return;
+            }
+            var cand = pickCandidateShapesFromSelection(comp);
+            if (!cand || cand.length === 0) {
+                alert("パラメーター取得の対象となる矩形レイヤーを選択してください。");
+                return;
+            }
+            readLayerParamsToUI(cand[cand.length - 1]);
         };
 
         btCopyParams.onClick = function(){
